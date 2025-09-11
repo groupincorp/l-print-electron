@@ -18,6 +18,7 @@ import {
   Play,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logout } from "./logout";
 
 interface Props {
   token: string | null;
@@ -176,7 +177,7 @@ export function PrintQueue(props: Props) {
       setPrinters(res.result);
 
       // Process only the first (oldest) print job to avoid duplicates
-      if (res.result.length > 0) {
+      if (res && res.result && res.result.length > 0) {
         const item = res.result[0]; // Get the first item only
 
         if (!isQueueRunning) {
@@ -222,7 +223,7 @@ export function PrintQueue(props: Props) {
         setProcessingJobId(null);
       }
     } catch (error) {
-      console.error("Error fetching print queue:", error);
+      console.log("Error fetching print queue:", error);
     } finally {
       isProcessing.current = false;
       setProcessingJobId(null);
@@ -373,6 +374,7 @@ export function PrintQueue(props: Props) {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
+            <Logout />
           </div>
         </div>
 

@@ -1,11 +1,10 @@
-const endpoint = "https://0cmdr7x3-3000.asse.devtunnels.ms";
-
 export async function requestDatabase<ResponseType = unknown>(
   url: string,
   method: "GET" | "POST" | "DELETE" | "PUT" = "GET",
   body?: unknown
 ): Promise<ResponseType> {
   const token = localStorage.getItem("token");
+  const endpoint = localStorage.getItem("server-endpoint");
   const raw = await fetch(`${endpoint}${url}`, {
     method,
     headers: token

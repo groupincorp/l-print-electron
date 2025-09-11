@@ -71,8 +71,8 @@ function createTray() {
 function createWindow() {
   const iconPath = getIconPath();
   mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 900,
+    height: 900,
     show: true,
     darkTheme: true,
     title: "Printer Maintenance",
