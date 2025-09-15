@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logout } from "./logout";
+import { PrintTestButton } from "./test-print";
 
 interface Props {
   token: string | null;
@@ -374,7 +375,6 @@ export function PrintQueue(props: Props) {
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
-            <Logout />
           </div>
         </div>
 
@@ -543,6 +543,11 @@ export function PrintQueue(props: Props) {
               );
             })
           )}
+        </div>
+
+        <div className="flex items-center justify-between mt-6">
+          <Logout />
+          <PrintTestButton />
         </div>
       </div>
     </div>
