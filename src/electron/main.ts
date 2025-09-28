@@ -6,7 +6,6 @@ import cron from "node-cron";
 
 // 1. this import won't work yet, but we will fix that next
 import "./api";
-import { printJob } from "./render";
 
 // 2. simple check if we are running in dev / preview / production
 const isDev = process.env.DEV != undefined;
@@ -127,8 +126,7 @@ app.whenReady().then(() => {
       ws.send(`Echo: ${msg.toString()}`);
       // Send message to renderer process via IPC
       mainWindow?.webContents.send("ws-message", msg.toString());
-      const data = JSON.parse(msg.toString());
-      printJob(data, data.printer, mainWindow!);
+      // const data = JSON.parse(msg.toString());
     });
   });
 
