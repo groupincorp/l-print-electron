@@ -9,6 +9,7 @@
     "dev": "concurrently \"vite\" \"cross-env DEV= tsc-watch -p tsconfig-electron.json --onSuccess \\\"electron .\\\"\"",
     "preview": "vite build && tsc -p tsconfig-electron.json && cross-env PREVIEW= electron .",
     "build": "vite build && tsc -p tsconfig-electron.json && electron-forge make",
+    "build:win": "vite build && tsc -p tsconfig-electron.json && electron-forge make --win --config",
     "lint": "eslint .",
     "electron-forge": "electron-forge",
     "start": "electron-forge start",
