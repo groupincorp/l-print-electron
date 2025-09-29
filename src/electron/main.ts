@@ -152,7 +152,7 @@ function createWindow() {
     width: 900,
     height: 900,
     show: !process.argv.includes("--hidden"), // Don't show if started hidden
-    darkTheme: true,
+    darkTheme: false,
     title: "Printer Maintenance",
     icon: nativeImage.createFromPath(iconPath),
     webPreferences: {

@@ -84,7 +84,7 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
         )}
         <Button
           type="submit"
-          className="w-full h-8 text-sm mt-2 shadow-sm transition"
+          className="w-full h-8 text-sm mt-2 shadow-sm transition !bg-emerald-600"
         >
           Login
         </Button>

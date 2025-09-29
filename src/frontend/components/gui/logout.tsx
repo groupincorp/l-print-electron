@@ -15,8 +15,8 @@ export function Logout() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <LogOut className="h-4 w-4 mr-2 " />
+        <Button variant="default" size="sm" className="text-black ">
+          <LogOut className="h-4 w-4 mr-2" />
           Logout
         </Button>
       </DialogTrigger>
@@ -37,6 +37,7 @@ export function Logout() {
                   localStorage.removeItem("server-endpoint");
                   window.location.reload();
                 }}
+                className="text-black "
               >
                 Logout & Reset Server
               </Button>
@@ -45,6 +46,7 @@ export function Logout() {
                   localStorage.removeItem("token");
                   window.location.reload();
                 }}
+                className="text-black "
               >
                 Logout
               </Button>

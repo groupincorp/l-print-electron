@@ -133,7 +133,12 @@ export function PrintTestButton() {
         placeholder="Enter printer name to test"
         onChange={(e) => setInput(e.target.value)}
       />
-      <Button variant="outline" size="sm" onClick={handlePrintTest}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handlePrintTest}
+        className="text-black "
+      >
         Print Test
       </Button>
     </div>

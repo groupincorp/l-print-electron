@@ -17,7 +17,6 @@ import {
   Settings,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ThemeToggle } from "../ui/theme-toggle";
 import { DeletePrintQueue } from "./delete-print-queue";
 import { Logout } from "./logout";
 import { PrintTestButton } from "./test-print";
@@ -552,7 +551,6 @@ export function PrintQueue(props: Props) {
         <div className="flex items-center justify-between mt-6">
           <div className="flex items-center gap-2">
             <Logout />
-            <ThemeToggle />
           </div>
           <PrintTestButton />
         </div>

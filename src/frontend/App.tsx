@@ -3,7 +3,6 @@ import "./App.css";
 import LoginForm from "./components/gui/login-form";
 import { PrintQueue } from "./components/gui/print-queue";
 import { ServerForm } from "./components/gui/server-form";
-import { ThemeProvider } from "./context/theme-provider";
 
 function App() {
   const localToken = useMemo(() => {
@@ -27,13 +26,11 @@ function App() {
   }
 
   return (
-    <ThemeProvider>
-      <div className="w-full flex flex-1 p-4 overflow-hidden relative">
-        {/* snip... */}
-        {renderUI}
-        {/* snip... */}
-      </div>
-    </ThemeProvider>
+    <div className="w-full flex flex-1 p-4 overflow-hidden relative">
+      {/* snip... */}
+      {renderUI}
+      {/* snip... */}
+    </div>
   );
 }
 
