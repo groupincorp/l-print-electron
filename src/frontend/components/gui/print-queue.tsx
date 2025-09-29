@@ -1,23 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { Button } from "@/components/ui/button";
 import { requestDatabase } from "@/server/request-api";
 import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
-import { useEffect, useRef, useState, useCallback } from "react";
 import {
-  Printer,
+  AlertTriangle,
+  Calendar,
+  CheckCircle,
   Clock,
-  User,
   FileText,
   Hash,
-  Calendar,
   Package,
-  AlertTriangle,
-  CheckCircle,
-  RefreshCw,
-  Settings,
   Pause,
   Play,
+  Printer,
+  RefreshCw,
+  Settings,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ThemeToggle } from "../ui/theme-toggle";
+import { DeletePrintQueue } from "./delete-print-queue";
 import { Logout } from "./logout";
 import { PrintTestButton } from "./test-print";
 
@@ -25,7 +26,7 @@ interface Props {
   token: string | null;
 }
 
-interface table_print_queue {
+export interface table_print_queue {
   id?: number;
   created_at: string;
   created_by: string;
@@ -46,11 +47,11 @@ const renderPrintContent = (content: PosPrintData[]) => {
     if (item.type === "text") {
       return (
         <div key={index} className="mb-2">
-          <div className="text-sm font-mono bg-slate-50 px-3 py-2 rounded border-l-4 border-l-blue-400">
+          <div className="text-sm font-mono bg-muted px-3 py-2 rounded border-l-4 border-l-primary">
             {item.value}
           </div>
           {item.style && (
-            <div className="text-xs text-gray-500 mt-1 ml-3">
+            <div className="text-xs text-muted-foreground mt-1 ml-3">
               Style: {JSON.stringify(item.style, null, 2)}
             </div>
           )}
@@ -59,7 +60,7 @@ const renderPrintContent = (content: PosPrintData[]) => {
     } else if (item.type === "image") {
       return (
         <div key={index} className="mb-2">
-          <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded border-l-4 border-l-blue-400">
+          <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 px-3 py-2 rounded border-l-4 border-l-primary">
             <Package className="h-4 w-4" />
             <span>Image: {item.path || "Base64 image"}</span>
           </div>
@@ -68,18 +69,18 @@ const renderPrintContent = (content: PosPrintData[]) => {
     } else if (item.type === "table") {
       return (
         <div key={index} className="mb-2">
-          <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded border-l-4 border-l-green-400">
+          <div className="text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 rounded border-l-4 border-l-emerald-400">
             <div className="flex items-center gap-2 mb-2">
               <FileText className="h-4 w-4" />
               <span className="font-medium">Table Data</span>
             </div>
             {item.tableHeader && (
-              <div className="text-xs text-gray-600 mb-1">
+              <div className="text-xs text-muted-foreground mb-1">
                 Headers: {item.tableHeader.join(", ")}
               </div>
             )}
             {item.tableBody && (
-              <div className="text-xs text-gray-600">
+              <div className="text-xs text-muted-foreground">
                 Rows: {item.tableBody.length}
               </div>
             )}
@@ -89,7 +90,7 @@ const renderPrintContent = (content: PosPrintData[]) => {
     } else {
       return (
         <div key={index} className="mb-2">
-          <div className="text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded border-l-4 border-l-gray-400">
+          <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded border-l-4 border-l-border">
             <div className="flex items-center gap-2 mb-1">
               <Settings className="h-4 w-4" />
               <span className="font-medium">Type: {item.type}</span>
@@ -115,22 +116,22 @@ const getPrintJobStatus = (createdAt: string) => {
   if (diffMinutes < 2) {
     return {
       status: "processing",
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "text-blue-600 dark:text-blue-400",
+      bgColor: "bg-blue-50 dark:bg-blue-950/30",
       icon: RefreshCw,
     };
   } else if (diffMinutes < 5) {
     return {
       status: "pending",
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
+      color: "text-yellow-600 dark:text-yellow-400",
+      bgColor: "bg-yellow-50 dark:bg-yellow-950/30",
       icon: Clock,
     };
   } else {
     return {
       status: "delayed",
-      color: "text-red-600",
-      bgColor: "bg-red-50",
+      color: "text-red-600 dark:text-red-400",
+      bgColor: "bg-red-50 dark:bg-red-950/30",
       icon: AlertTriangle,
     };
   }
@@ -297,19 +298,19 @@ export function PrintQueue(props: Props) {
   }, [isQueueRunning, startQueueLoop, stopQueueLoop]);
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-white to-blue-50 overflow-hidden">
+    <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-background to-blue-50 dark:from-emerald-950/20 dark:via-background dark:to-blue-950/20 overflow-hidden">
       <div className="h-full flex flex-col p-6">
         {/* Enhanced Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-100 rounded-lg">
-              <Printer className="h-6 w-6 text-emerald-700" />
+            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+              <Printer className="h-6 w-6 text-emerald-700 dark:text-emerald-400" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-emerald-700 tracking-tight">
+              <h2 className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight">
                 Print Queue
               </h2>
-              <p className="text-sm text-emerald-600">
+              <p className="text-sm text-emerald-600 dark:text-emerald-500">
                 Monitor and manage your print jobs
               </p>
             </div>
@@ -319,15 +320,15 @@ export function PrintQueue(props: Props) {
             <div
               className={`text-sm px-4 py-2 rounded-full border ${
                 isQueueRunning
-                  ? "text-green-700 bg-green-100 border-green-200"
-                  : "text-orange-700 bg-orange-100 border-orange-200"
+                  ? "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/30 border-green-200 dark:border-green-800"
+                  : "text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
               }`}
             >
               <div className="flex items-center gap-2">
                 {isQueueRunning ? (
-                  <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" />
+                  <div className="h-2 w-2 bg-green-500 dark:bg-green-400 rounded-full animate-pulse" />
                 ) : (
-                  <div className="h-2 w-2 bg-orange-500 rounded-full" />
+                  <div className="h-2 w-2 bg-orange-500 dark:bg-orange-400 rounded-full" />
                 )}
                 <span className="font-medium">
                   {isQueueRunning ? "Running" : "Paused"}
@@ -349,8 +350,8 @@ export function PrintQueue(props: Props) {
               onClick={toggleQueue}
               className={`border-2 ${
                 isQueueRunning
-                  ? "border-orange-200 text-orange-700 hover:bg-orange-50"
-                  : "border-green-200 text-green-700 hover:bg-green-50"
+                  ? "border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+                  : "border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
               }`}
             >
               {isQueueRunning ? (
@@ -462,11 +463,14 @@ export function PrintQueue(props: Props) {
                         {/* ...existing code for job details... */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                           <div className="flex items-center gap-2 text-gray-600">
-                            <User className="h-4 w-4" />
-                            <span className="font-medium">Created by:</span>
-                            <span className="text-gray-900">
-                              {printer.created_by}
-                            </span>
+                            <DeletePrintQueue
+                              print={printer}
+                              onDeleted={() => {
+                                setPrinters((prev) =>
+                                  prev.filter((p) => p.id !== printer.id)
+                                );
+                              }}
+                            />
                           </div>
                           <div className="flex items-center gap-2 text-gray-600">
                             <Calendar className="h-4 w-4" />
@@ -546,7 +550,10 @@ export function PrintQueue(props: Props) {
         </div>
 
         <div className="flex items-center justify-between mt-6">
-          <Logout />
+          <div className="flex items-center gap-2">
+            <Logout />
+            <ThemeToggle />
+          </div>
           <PrintTestButton />
         </div>
       </div>

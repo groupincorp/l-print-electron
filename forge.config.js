@@ -1,27 +1,53 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
+const path = require('path');
 
 module.exports = {
   packagerConfig: {
     asar: true,
+    icon: path.resolve(__dirname, 'src/assets/printer-maintenance'), // Electron Forge will automatically append the correct extension
+    extraResource: [
+      path.resolve(__dirname, 'src/assets/printer-maintenance.icns'),
+      path.resolve(__dirname, 'src/assets/printer-maintenance.ico'),
+      path.resolve(__dirname, 'src/assets/printer-maintenance.png')
+    ],
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        iconUrl: path.resolve(__dirname, 'src/assets/printer-maintenance.ico'),
+        setupIcon: path.resolve(__dirname, 'src/assets/printer-maintenance.ico'),
+      },
     },
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
     },
     {
+      name: '@electron-forge/maker-dmg',
+      config: {
+        icon: path.resolve(__dirname, 'src/assets/printer-maintenance.icns'),
+        name: 'Printer Restaurant',
+      },
+      platforms: ['darwin'],
+    },
+    {
       name: '@electron-forge/maker-deb',
-      config: {},
+      config: {
+        options: {
+          icon: path.resolve(__dirname, 'src/assets/printer-maintenance.png'),
+        },
+      },
     },
     {
       name: '@electron-forge/maker-rpm',
-      config: {},
+      config: {
+        options: {
+          icon: path.resolve(__dirname, 'src/assets/printer-maintenance.png'),
+        },
+      },
     },
   ],
   plugins: [

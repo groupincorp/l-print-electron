@@ -1,6 +1,6 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
+import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 
 // https://vite.dev/config/
@@ -9,7 +9,10 @@ export default defineConfig(async () => ({
     react(), // dynamic import avoids externalize-deps issue
     (await import("@tailwindcss/vite")).default(),
     viteStaticCopy({
-      targets: [{ src: "src/assets/*", dest: "assets" }],
+      targets: [
+        { src: "src/assets/*", dest: "assets" },
+        { src: "src/assets/printer-maintenance.*", dest: "." }, // Copy icons to root for easier access
+      ],
     }),
   ],
   base: "./",

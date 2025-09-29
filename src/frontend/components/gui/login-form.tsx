@@ -1,8 +1,8 @@
 import React, { useState } from "react";
+import { requestDatabase } from "../../server/request-api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { requestDatabase } from "../../server/request-api";
 
 const LoginForm = (props: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
@@ -78,11 +78,13 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
           />
         </div>
         {error && (
-          <div className="text-red-500 text-xs text-center mt-1">{error}</div>
+          <div className="text-destructive text-xs text-center mt-1">
+            {error}
+          </div>
         )}
         <Button
           type="submit"
-          className="w-full !bg-emerald-600 !h-8 text-sm mt-2 shadow-sm hover:!bg-emerald-700 transition"
+          className="w-full h-8 text-sm mt-2 shadow-sm transition"
         >
           Login
         </Button>

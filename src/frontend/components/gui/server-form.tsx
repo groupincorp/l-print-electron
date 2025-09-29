@@ -1,7 +1,7 @@
 import { useState } from "react";
+import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { Button } from "../ui/button";
 
 interface Props {
   onSave?: () => void;
@@ -19,15 +19,18 @@ export function ServerForm({ onSave }: Props) {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh] bg-gradient-to-br from-emerald-50 to-white">
+    <div className="flex items-center justify-center min-h-[60vh] bg-gradient-to-br from-emerald-50 to-background dark:from-emerald-950/20 dark:to-background">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 w-full max-w-xs p-5 rounded-xl shadow-lg bg-white border border-emerald-100"
+        className="flex flex-col gap-3 w-full max-w-xs p-5 rounded-xl shadow-lg bg-card border border-emerald-100 dark:border-emerald-800"
       >
+        <h2 className="text-lg font-bold text-emerald-700 dark:text-emerald-400 text-center mb-2 tracking-tight">
+          Server Configuration
+        </h2>
         <div className="flex flex-col gap-1">
           <Label
             htmlFor="username"
-            className="text-xs font-medium text-emerald-800 pl-1"
+            className="text-xs font-medium text-emerald-800 dark:text-emerald-400 pl-1"
           >
             Server Endpoint
           </Label>
@@ -43,7 +46,7 @@ export function ServerForm({ onSave }: Props) {
         </div>
         <Button
           type="submit"
-          className="w-full !bg-emerald-600 !h-8 text-sm mt-2 shadow-sm hover:!bg-emerald-700 transition"
+          className="w-full h-8 text-sm mt-2 shadow-sm transition bg-emerald-600 hover:bg-emerald-700 text-white dark:bg-emerald-600 dark:hover:bg-emerald-700"
         >
           Save
         </Button>

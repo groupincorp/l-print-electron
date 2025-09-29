@@ -1,6 +1,6 @@
+import type { PosPrintData } from "electron-pos-printer";
 import { useCallback, useState } from "react";
 import { Button } from "../ui/button";
-import type { PosPrintData } from "electron-pos-printer";
 import { Input } from "../ui/input";
 
 function getSamplePrintData() {
@@ -133,12 +133,7 @@ export function PrintTestButton() {
         placeholder="Enter printer name to test"
         onChange={(e) => setInput(e.target.value)}
       />
-      <Button
-        variant="outline"
-        size="sm"
-        className="text-white"
-        onClick={handlePrintTest}
-      >
+      <Button variant="outline" size="sm" onClick={handlePrintTest}>
         Print Test
       </Button>
     </div>
