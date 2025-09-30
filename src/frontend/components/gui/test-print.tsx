@@ -53,8 +53,13 @@ function getSamplePrintData() {
         fontSize: "18px",
         fontFamily: "Hanuman, 'Courier New', Courier, monospace",
         fontWeight: "bold",
+        whiteSpace: "pre-wrap",
+        width: "257px",
+        display: "block",
+        wordBreak: "break-word",
       },
-      value: "ទំនិញ:   LANGERS CRAN&RASPBERRY (946ML) x1",
+      value:
+        "ទំនិញ: នំក្រែមវ៉ាន់នីឡា Stikko Fingers Milk Vanilla (28g x 12) x 4",
     },
     {
       type: "text",
