@@ -338,7 +338,9 @@ export function PrintQueue(props: Props) {
             <div className="text-sm text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full border border-emerald-200">
               <div className="flex items-center gap-2">
                 <Hash className="h-4 w-4" />
-                <span className="font-medium">{printers.length} items</span>
+                <span className="font-medium">
+                  {printers ? printers.length : 0} items
+                </span>
               </div>
             </div>
 
@@ -380,7 +382,7 @@ export function PrintQueue(props: Props) {
 
         {/* Queue Content */}
         <div className="flex-1 overflow-y-auto space-y-4">
-          {printers.length === 0 ? (
+          {printers && printers.length === 0 ? (
             <div className="text-center py-16">
               <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
                 <CheckCircle className="h-8 w-8 text-emerald-600" />
@@ -393,6 +395,7 @@ export function PrintQueue(props: Props) {
               </p>
             </div>
           ) : (
+            printers &&
             printers.map((printer, index) => {
               const jobStatus = getPrintJobStatus(printer.created_at);
               const StatusIcon = jobStatus.icon;

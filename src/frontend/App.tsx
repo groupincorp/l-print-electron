@@ -19,7 +19,11 @@ function App() {
     renderUI = <ServerForm onSave={() => window.location.reload()} />;
   } else {
     if (token) {
-      renderUI = <PrintQueue token={token} />;
+      renderUI = (
+        <div>
+          <PrintQueue token={token} />
+        </div>
+      );
     } else {
       renderUI = <LoginForm onLogin={setToken} />;
     }
