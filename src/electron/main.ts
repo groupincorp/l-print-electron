@@ -15,6 +15,22 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting = false;
 
+// Ensure single instance
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    // Someone tried to run a second instance, focus our window instead
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 app.setLoginItemSettings({
   openAtLogin: true,
   openAsHidden: true,

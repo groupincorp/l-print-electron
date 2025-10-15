@@ -88,6 +88,19 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
         >
           Login
         </Button>
+        <Button
+          type="button"
+          variant={"outline"}
+          size={"sm"}
+          className="text-sm"
+          onClick={() => {
+            localStorage.removeItem("token");
+            localStorage.removeItem("server-endpoint");
+            window.location.reload();
+          }}
+        >
+          Cannot login? Go to back
+        </Button>
       </form>
     </div>
   );
