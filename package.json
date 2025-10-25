@@ -11,6 +11,7 @@
     "preview": "vite build && tsc -p tsconfig-electron.json && cross-env PREVIEW= electron .",
     "build": "vite build && tsc -p tsconfig-electron.json && electron-forge make",
     "build:win": "vite build && tsc -p tsconfig-electron.json && electron-forge make --win --config",
+    "build:linux": "vite build && tsc -p tsconfig-electron.json && electron-forge make --linux --config",
     "build:mac": "vite build && tsc -p tsconfig-electron.json && electron-forge make --mac --config",
     "lint": "eslint .",
     "electron-forge": "electron-forge",

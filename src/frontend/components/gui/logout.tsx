@@ -35,6 +35,7 @@ export function Logout() {
                 onClick={() => {
                   localStorage.removeItem("token");
                   localStorage.removeItem("server-endpoint");
+                  localStorage.removeItem("server-target");
                   window.location.reload();
                 }}
                 className="text-black "

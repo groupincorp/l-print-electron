@@ -169,9 +169,13 @@ export function PrintQueue(props: Props) {
     }
 
     isProcessing.current = true;
+    const target = localStorage.getItem("server-target") || "";
 
     try {
-      const res = (await requestDatabase("/api/print-queue", "GET")) as {
+      const res = (await requestDatabase(
+        `/api/print-queue${target ? `?keyword=${target}` : ""}`,
+        "GET"
+      )) as {
         result: table_print_queue[];
       };
 
