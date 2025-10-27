@@ -181,50 +181,76 @@ export function PrintQueue(props: Props) {
 
       setPrinters(res.result);
 
-      // Process only the first (oldest) print job to avoid duplicates
+      // Process ALL print jobs simultaneously
       if (res && res.result && res.result.length > 0) {
-        const item = res.result[0]; // Get the first item only
-
         if (!isQueueRunning) {
           isProcessing.current = false;
           return;
         }
 
-        setProcessingJobId(item.id || null);
+        console.log(
+          `Processing ${res.result.length} print jobs simultaneously...`
+        );
 
-        const printInfo: PosPrintData[] = item.content;
-        const printOption: PosPrintOptions = {
-          preview: false,
-          margin: "0 0 0 0",
-          copies: 1,
-          printerName: item.printer_info.printer_name,
-          timeOutPerLine: 400,
-          silent: true,
-          pageSize: "80mm",
-          boolean: true,
-        };
+        // Process all jobs in parallel using Promise.allSettled
+        const printPromises = res.result.map(async (item) => {
+          setProcessingJobId(item.id || null);
 
-        try {
-          console.log(
-            `Processing print job #${item.id} for printer: ${item.printer_info.printer_name}`
+          const printInfo: PosPrintData[] = item.content;
+          const printOption: PosPrintOptions = {
+            preview: false,
+            margin: "0 0 0 0",
+            copies: 1,
+            printerName: item.printer_info.printer_name,
+            timeOutPerLine: 400,
+            silent: true,
+            pageSize: "80mm",
+            boolean: true,
+          };
+
+          try {
+            console.log(
+              `Processing print job #${item.id} for printer: ${item.printer_info.printer_name}`
+            );
+            const response = await backend.printJob(printInfo, printOption);
+            console.log(`Print job #${item.id} response:`, response);
+
+            // Remove successful job from queue
+            await requestDatabase("/api/print-queue/delete", "DELETE", {
+              ids: [item.id],
+            });
+
+            console.log(`Successfully completed print job #${item.id}`);
+            return { success: true, id: item.id };
+          } catch (err) {
+            console.error(`Error printing job #${item.id}:`, err);
+            return { success: false, id: item.id, error: err };
+          }
+        });
+
+        // Wait for all print jobs to complete
+        const results = await Promise.allSettled(printPromises);
+
+        // Extract successful job IDs
+        const successfulIds = results
+          .filter(
+            (result) => result.status === "fulfilled" && result.value.success
+          )
+          .map((result) =>
+            result.status === "fulfilled" ? result.value.id : null
+          )
+          .filter((id): id is number => id !== null);
+
+        // Update local state by removing successful jobs
+        if (successfulIds.length > 0) {
+          setPrinters((prev) =>
+            prev.filter((p) => !successfulIds.includes(p.id!))
           );
-          const response = await backend.printJob(printInfo, printOption);
-          console.log("Print job response:", response);
-
-          // Remove successful job from queue
-          await requestDatabase("/api/print-queue/delete", "DELETE", {
-            ids: [item.id],
-          });
-
-          // Update local state
-          setPrinters((prev) => prev.filter((p) => p.id !== item.id));
-
-          console.log(`Successfully completed print job #${item.id}`);
-        } catch (err) {
-          console.error(`Error printing job #${item.id}:`, err);
-          // Could add retry logic here or mark job as failed
         }
 
+        console.log(
+          `Completed ${successfulIds.length} out of ${res.result.length} print jobs`
+        );
         setProcessingJobId(null);
       }
     } catch (error) {
