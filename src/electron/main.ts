@@ -205,9 +205,9 @@ function createWindow() {
   });
 }
 
-// Run cron job every minute
-cron.schedule("*/15 * * * * *", () => {
-  console.log("⏰ Running every 15 seconds:", new Date().toISOString());
+// Run cron job every 10 seconds
+cron.schedule("*/10 * * * * *", () => {
+  console.log("⏰ Running every 10 seconds:", new Date().toISOString());
   // Example: send message to renderer
   if (mainWindow) {
     mainWindow.webContents.send("cron-event", { time: new Date() });
@@ -218,8 +218,8 @@ function runBackgroundProcess() {
   console.log("Background process started");
 
   setInterval(() => {
-    console.log("Background task running every 5 seconds");
-  }, 5000);
+    console.log("Background task running every 10 seconds");
+  }, 10000);
 }
 
 // This method will be called when Electron has finished

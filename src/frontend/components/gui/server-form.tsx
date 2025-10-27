@@ -11,14 +11,10 @@ export function ServerForm({ onSave }: Props) {
   const [endpoint, setEndpoint] = useState(
     localStorage.getItem("server-endpoint") || ""
   );
-  const [target, setTarget] = useState(
-    localStorage.getItem("server-target") || ""
-  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem("server-endpoint", endpoint);
-    localStorage.setItem("server-target", target);
     onSave?.();
   };
 
@@ -45,23 +41,6 @@ export function ServerForm({ onSave }: Props) {
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
             autoComplete="link"
-            className="text-sm px-2 py-1.5 focus:ring-2 focus:ring-emerald-400"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <Label
-            htmlFor="target"
-            className="text-xs font-medium text-emerald-800  pl-1"
-          >
-            Target
-          </Label>
-          <Input
-            id="target"
-            type="text"
-            placeholder="optional"
-            value={target}
-            onChange={(e) => setTarget(e.target.value)}
-            autoComplete="target"
             className="text-sm px-2 py-1.5 focus:ring-2 focus:ring-emerald-400"
           />
         </div>
