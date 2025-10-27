@@ -267,7 +267,7 @@ export function PrintQueue(props: Props) {
       clearInterval(queueIntervalRef.current);
     }
 
-    queueIntervalRef.current = setInterval(processQueue, 3000); // Check every 3 seconds
+    // queueIntervalRef.current = setInterval(processQueue, 3000); // Check every 3 seconds
     processQueue(); // Run immediately
   }, [processQueue]);
 
