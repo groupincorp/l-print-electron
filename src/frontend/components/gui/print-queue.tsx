@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from "@/components/ui/button";
+import { printLock } from "@/lib/print-lock";
 import { requestDatabase } from "@/server/request-api";
 import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
 import {
@@ -162,7 +163,7 @@ export function PrintQueue(props: Props) {
   const isProcessing = useRef(false);
   const queueIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Function to process print queue
+  // Function to process print queue - Fixed to prevent duplicates
   const processQueue = useCallback(async () => {
     if (isProcessing.current || !isQueueRunning) {
       return;
@@ -177,7 +178,7 @@ export function PrintQueue(props: Props) {
 
       setPrinters(res.result);
 
-      // Process ALL print jobs simultaneously
+      // Process print jobs ONE AT A TIME to prevent duplicates
       if (res && res.result && res.result.length > 0) {
         if (!isQueueRunning) {
           isProcessing.current = false;
@@ -185,69 +186,101 @@ export function PrintQueue(props: Props) {
         }
 
         console.log(
-          `Processing ${res.result.length} print jobs simultaneously...`
+          `Processing ${res.result.length} print jobs sequentially...`
         );
 
-        // Process all jobs in parallel using Promise.allSettled
-        const printPromises = res.result.map(async (item) => {
-          setProcessingJobId(item.id || null);
+        // Process jobs one by one instead of all at once
+        for (const item of res.result) {
+          const jobId = item.id;
+          if (!jobId) {
+            console.warn("Job has no ID, skipping...");
+            continue;
+          }
 
-          const printInfo: PosPrintData[] = item.content;
-          const printOption: PosPrintOptions = {
-            preview: false,
-            margin: "0 0 0 0",
-            copies: 1,
-            printerName: item.printer_info.printer_name,
-            timeOutPerLine: 400,
-            silent: true,
-            pageSize: "80mm",
-            boolean: true,
-          };
+          // Try to acquire lock for this job
+          if (!printLock.tryLock(jobId)) {
+            console.log(
+              `Job #${jobId} is already being processed, skipping...`
+            );
+            continue;
+          }
 
           try {
+            // Double-check if job still exists before processing
+            try {
+              const currentQueue = (await requestDatabase(
+                `/api/print-queue`,
+                "GET"
+              )) as {
+                result: table_print_queue[];
+              };
+
+              const jobStillExists = currentQueue.result.some(
+                (job) => job.id === jobId
+              );
+              if (!jobStillExists) {
+                console.log(`Job #${jobId} already processed, skipping...`);
+                continue;
+              }
+            } catch (checkError) {
+              console.error(
+                `Error checking job #${jobId} existence:`,
+                checkError
+              );
+              continue;
+            }
+
+            setProcessingJobId(jobId);
+
+            const printInfo: PosPrintData[] = item.content;
+            const printOption: PosPrintOptions = {
+              preview: false,
+              margin: "0 0 0 0",
+              copies: 1,
+              printerName: item.printer_info.printer_name,
+              timeOutPerLine: 400,
+              silent: true,
+              pageSize: "80mm",
+              boolean: true,
+            };
+
             console.log(
-              `Processing print job #${item.id} for printer: ${item.printer_info.printer_name}`
+              `Processing print job #${jobId} for printer: ${item.printer_info.printer_name}`
             );
+
+            // Print the job
             const response = await backend.printJob(printInfo, printOption);
-            console.log(`Print job #${item.id} response:`, response);
+            console.log(`Print job #${jobId} response:`, response);
 
-            // Remove successful job from queue
-            await requestDatabase("/api/print-queue/delete", "DELETE", {
-              ids: [item.id],
-            });
+            // Only remove from queue if print was successful
+            if (response) {
+              await requestDatabase("/api/print-queue/delete", "DELETE", {
+                ids: [jobId],
+              });
 
-            console.log(`Successfully completed print job #${item.id}`);
-            return { success: true, id: item.id };
+              console.log(
+                `Successfully completed and removed print job #${jobId}`
+              );
+
+              // Update local state immediately
+              setPrinters((prev) => prev.filter((p) => p.id !== jobId));
+            } else {
+              console.warn(`Print job #${jobId} failed, keeping in queue`);
+            }
+
+            // Add a small delay between jobs to prevent overwhelming the printer
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           } catch (err) {
-            console.error(`Error printing job #${item.id}:`, err);
-            return { success: false, id: item.id, error: err };
+            console.error(`Error printing job #${jobId}:`, err);
+            // Don't remove failed jobs from queue, they will be retried
+          } finally {
+            // Always release the lock
+            printLock.release(jobId);
           }
-        });
-
-        // Wait for all print jobs to complete
-        const results = await Promise.allSettled(printPromises);
-
-        // Extract successful job IDs
-        const successfulIds = results
-          .filter(
-            (result) => result.status === "fulfilled" && result.value.success
-          )
-          .map((result) =>
-            result.status === "fulfilled" ? result.value.id : null
-          )
-          .filter((id): id is number => id !== null);
-
-        // Update local state by removing successful jobs
-        if (successfulIds.length > 0) {
-          setPrinters((prev) =>
-            prev.filter((p) => !successfulIds.includes(p.id!))
-          );
         }
 
-        console.log(
-          `Completed ${successfulIds.length} out of ${res.result.length} print jobs`
-        );
         setProcessingJobId(null);
+        console.log(`Completed processing all print jobs sequentially`);
       }
     } catch (error) {
       console.log("Error fetching print queue:", error);
@@ -257,14 +290,21 @@ export function PrintQueue(props: Props) {
     }
   }, [isQueueRunning]);
 
-  // Start queue loop
+  // Start queue loop - Fixed to prevent overlapping executions
   const startQueueLoop = useCallback(() => {
     if (queueIntervalRef.current) {
       clearInterval(queueIntervalRef.current);
     }
 
-    // queueIntervalRef.current = setInterval(processQueue, 3000); // Check every 3 seconds
-    processQueue(); // Run immediately
+    // Set up interval with longer delay to prevent rapid firing
+    if (!isProcessing.current) {
+      processQueue();
+    } else {
+      console.log("Skipping queue processing - already in progress");
+    }
+
+    // Run immediately once
+    processQueue();
   }, [processQueue]);
 
   // Stop queue loop
@@ -283,13 +323,21 @@ export function PrintQueue(props: Props) {
   useEffect(() => {
     if (props.token && !isHandlerRegistered.current) {
       const handler = async () => {
-        await processQueue();
+        // Only process if not already processing and queue is running
+        if (!isProcessing.current && isQueueRunning) {
+          console.log("Cron event triggered - processing queue");
+          await processQueue();
+        } else {
+          console.log(
+            "Cron event triggered - skipping (already processing or queue paused)"
+          );
+        }
       };
 
       backend.onCronEvent(handler);
       isHandlerRegistered.current = true;
 
-      // Start the queue loop
+      // Start the queue loop only if queue is running
       if (isQueueRunning) {
         startQueueLoop();
       }
@@ -298,7 +346,10 @@ export function PrintQueue(props: Props) {
       return () => {
         isHandlerRegistered.current = false;
         isProcessing.current = false;
+        setProcessingJobId(null);
         stopQueueLoop();
+        // Clear any stale locks when component unmounts
+        printLock.clearAll();
       };
     }
   }, [

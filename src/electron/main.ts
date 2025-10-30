@@ -205,9 +205,9 @@ function createWindow() {
   });
 }
 
-// Run cron job every 10 seconds
-cron.schedule("*/10 * * * * *", () => {
-  console.log("⏰ Running every 10 seconds:", new Date().toISOString());
+// Run cron job every 30 seconds instead of 10 to prevent rapid firing
+cron.schedule("*/30 * * * * *", () => {
+  console.log("⏰ Running every 30 seconds:", new Date().toISOString());
   // Example: send message to renderer
   if (mainWindow) {
     mainWindow.webContents.send("cron-event", { time: new Date() });
