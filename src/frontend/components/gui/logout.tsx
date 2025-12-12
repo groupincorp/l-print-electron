@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
-import { electronStore } from "../../lib/electron-store";
 
 export function Logout() {
   return (
@@ -34,9 +33,9 @@ export function Logout() {
               <Button
                 variant="destructive"
                 onClick={async () => {
-                  await electronStore.removeItem("token");
-                  await electronStore.removeItem("server-endpoint");
-                  await electronStore.removeItem("server-target");
+                  localStorage.removeItem("token");
+                  localStorage.removeItem("server-endpoint");
+                  localStorage.removeItem("server-target");
                   window.location.reload();
                 }}
                 className="text-black "
@@ -45,7 +44,7 @@ export function Logout() {
               </Button>
               <Button
                 onClick={async () => {
-                  await electronStore.removeItem("token");
+                  localStorage.removeItem("token");
                   window.location.reload();
                 }}
                 className="text-black "

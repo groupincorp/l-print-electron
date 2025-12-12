@@ -3,7 +3,6 @@ import "./App.css";
 import LoginForm from "./components/gui/login-form";
 import { PrintQueue } from "./components/gui/print-queue";
 import { ServerForm } from "./components/gui/server-form";
-import { electronStore } from "./lib/electron-store";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -13,8 +12,8 @@ function App() {
   useEffect(() => {
     const loadStoredData = async () => {
       try {
-        const storedToken = await electronStore.getItem("token");
-        const storedEndpoint = await electronStore.getItem("server-endpoint");
+        const storedToken = localStorage.getItem("token");
+        const storedEndpoint = localStorage.getItem("server-endpoint");
         setToken(storedToken);
         setServerEndpoint(storedEndpoint);
       } catch (error) {

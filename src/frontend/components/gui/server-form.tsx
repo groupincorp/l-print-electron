@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { electronStore } from "../../lib/electron-store";
 
 interface Props {
   onSave?: () => void;
@@ -15,7 +14,7 @@ export function ServerForm({ onSave }: Props) {
   useEffect(() => {
     const loadEndpoint = async () => {
       try {
-        const storedEndpoint = await electronStore.getItem("server-endpoint");
+        const storedEndpoint = localStorage.getItem("server-endpoint");
         setEndpoint(storedEndpoint || "");
       } catch (error) {
         console.error("Failed to load server endpoint:", error);
@@ -30,7 +29,7 @@ export function ServerForm({ onSave }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await electronStore.setItem("server-endpoint", endpoint);
+      localStorage.setItem("server-endpoint", endpoint);
       onSave?.();
     } catch (error) {
       console.error("Failed to save server endpoint:", error);

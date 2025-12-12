@@ -11,6 +11,9 @@ import "./api";
 const isDev = process.env.DEV != undefined;
 const isPreview = process.env.PREVIEW != undefined;
 
+app.setName("Printer Maintenance");
+app.setPath("userData", join(app.getPath("appData"), "printer-maintenance"));
+
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuiting = false;
@@ -172,6 +175,7 @@ function createWindow() {
     title: "Printer Maintenance",
     icon: nativeImage.createFromPath(iconPath),
     webPreferences: {
+      partition: "persist:main",
       preload: join(__dirname, "preload.js"),
       webSecurity: false,
       nodeIntegration: false,
