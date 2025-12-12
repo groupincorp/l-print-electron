@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "../ui/dialog";
+import { electronStore } from "../../lib/electron-store";
 
 export function Logout() {
   return (
@@ -32,10 +33,10 @@ export function Logout() {
             <div className="flex flex-row gap-2">
               <Button
                 variant="destructive"
-                onClick={() => {
-                  localStorage.removeItem("token");
-                  localStorage.removeItem("server-endpoint");
-                  localStorage.removeItem("server-target");
+                onClick={async () => {
+                  await electronStore.removeItem("token");
+                  await electronStore.removeItem("server-endpoint");
+                  await electronStore.removeItem("server-target");
                   window.location.reload();
                 }}
                 className="text-black "
@@ -43,8 +44,8 @@ export function Logout() {
                 Logout & Reset Server
               </Button>
               <Button
-                onClick={() => {
-                  localStorage.removeItem("token");
+                onClick={async () => {
+                  await electronStore.removeItem("token");
                   window.location.reload();
                 }}
                 className="text-black "

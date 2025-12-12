@@ -16,6 +16,13 @@ export const backend = {
   printJob: async (printData: any[], options: any) => {
     return await ipcRenderer.invoke("create-print-job", printData, options);
   },
+  // Store methods
+  store: {
+    get: async (key: string) => await ipcRenderer.invoke("store-get", key),
+    set: async (key: string, value: any) => await ipcRenderer.invoke("store-set", key, value),
+    delete: async (key: string) => await ipcRenderer.invoke("store-delete", key),
+    clear: async () => await ipcRenderer.invoke("store-clear"),
+  },
 };
 
 contextBridge.exposeInMainWorld("backend", backend);

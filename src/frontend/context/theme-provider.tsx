@@ -1,4 +1,5 @@
 import React, { createContext, useEffect, useState } from "react";
+import { electronStore } from "../lib/electron-store";
 
 type Theme = "light" | "dark" | "system";
 
@@ -14,10 +15,24 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export { ThemeContext };
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem("theme") as Theme;
-    return stored || "system";
-  });
+  const [theme, setTheme] = useState<Theme>("system");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load theme from store on mount
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const storedTheme = await electronStore.getItem("theme") as Theme;
+        setTheme(storedTheme || "system");
+      } catch (error) {
+        console.error("Failed to load theme:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTheme();
+  }, []);
 
   const [actualTheme, setActualTheme] = useState<"light" | "dark">("light");
 
@@ -55,8 +70,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem("theme", theme);
-  }, [theme]);
+    if (!isLoading) {
+      electronStore.setItem("theme", theme);
+    }
+  }, [theme, isLoading]);
+
+  if (isLoading) {
+    return null; // or a loading spinner
+  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, actualTheme }}>

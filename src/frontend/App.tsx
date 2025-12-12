@@ -1,21 +1,43 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import LoginForm from "./components/gui/login-form";
 import { PrintQueue } from "./components/gui/print-queue";
 import { ServerForm } from "./components/gui/server-form";
+import { electronStore } from "./lib/electron-store";
 
 function App() {
-  const localToken = useMemo(() => {
-    return localStorage.getItem("token");
+  const [token, setToken] = useState<string | null>(null);
+  const [serverEndpoint, setServerEndpoint] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadStoredData = async () => {
+      try {
+        const storedToken = await electronStore.getItem("token");
+        const storedEndpoint = await electronStore.getItem("server-endpoint");
+        setToken(storedToken);
+        setServerEndpoint(storedEndpoint);
+      } catch (error) {
+        console.error("Failed to load stored data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStoredData();
   }, []);
-  const localServerEndpoint = useMemo(() => {
-    return localStorage.getItem("server-endpoint");
-  }, []);
-  const [token, setToken] = useState<string | null>(localToken);
+
+  if (isLoading) {
+    return (
+      <div className="w-full flex flex-1 p-4 overflow-hidden relative items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   let renderUI = <></>;
 
-  if (!localServerEndpoint) {
+  if (!serverEndpoint) {
     renderUI = <ServerForm onSave={() => window.location.reload()} />;
   } else {
     if (token) {

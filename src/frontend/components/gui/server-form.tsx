@@ -1,22 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { electronStore } from "../../lib/electron-store";
 
 interface Props {
   onSave?: () => void;
 }
 
 export function ServerForm({ onSave }: Props) {
-  const [endpoint, setEndpoint] = useState(
-    localStorage.getItem("server-endpoint") || ""
-  );
+  const [endpoint, setEndpoint] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const loadEndpoint = async () => {
+      try {
+        const storedEndpoint = await electronStore.getItem("server-endpoint");
+        setEndpoint(storedEndpoint || "");
+      } catch (error) {
+        console.error("Failed to load server endpoint:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadEndpoint();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("server-endpoint", endpoint);
-    onSave?.();
+    try {
+      await electronStore.setItem("server-endpoint", endpoint);
+      onSave?.();
+    } catch (error) {
+      console.error("Failed to save server endpoint:", error);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] bg-gradient-to-br from-emerald-50 to-background dark:from-emerald-950/20 dark:to-background">
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center min-h-[60vh] bg-gradient-to-br from-emerald-50 to-background dark:from-emerald-950/20 dark:to-background">

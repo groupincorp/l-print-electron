@@ -3,6 +3,7 @@ import { requestDatabase } from "../../server/request-api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { electronStore } from "../../lib/electron-store";
 
 const LoginForm = (props: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
@@ -22,9 +23,9 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
       username,
       password,
     })
-      .then((response) => {
+      .then(async (response) => {
         const typedResponse = response as { token: string };
-        localStorage.setItem("token", typedResponse.token);
+        await electronStore.setItem("token", typedResponse.token);
         props.onLogin(typedResponse.token);
         alert(`Logging in as ${username}`);
       })
@@ -93,9 +94,9 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
           variant={"outline"}
           size={"sm"}
           className="text-sm"
-          onClick={() => {
-            localStorage.removeItem("token");
-            localStorage.removeItem("server-endpoint");
+          onClick={async () => {
+            await electronStore.removeItem("token");
+            await electronStore.removeItem("server-endpoint");
             window.location.reload();
           }}
         >
