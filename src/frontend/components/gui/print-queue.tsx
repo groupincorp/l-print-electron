@@ -158,7 +158,7 @@ const getContentSummary = (content: PosPrintData[]) => {
 export function PrintQueue(props: Props) {
   const [printers, setPrinters] = useState<table_print_queue[]>([]);
   const [isQueueRunning, setIsQueueRunning] = useState(true);
-  const [processingJobId, setProcessingJobId] = useState<number | null>(null);
+  const [processingJobId, setProcessingJobId] = useState<string | null>(null);
   const isHandlerRegistered = useRef(false);
   const isProcessing = useRef(false);
   const queueIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -230,7 +230,7 @@ export function PrintQueue(props: Props) {
               continue;
             }
 
-            setProcessingJobId(jobId);
+            setProcessingJobId(String(jobId));
 
             const printInfo: PosPrintData[] = item.content;
             const printOption: PosPrintOptions = {
@@ -254,8 +254,11 @@ export function PrintQueue(props: Props) {
 
             // Only remove from queue if print was successful
             if (response) {
+              const ids = String(jobId)
+                .split(",")
+                .map((x) => Number(x));
               await requestDatabase("/api/print-queue/delete", "DELETE", {
-                ids: [jobId],
+                ids: [...ids],
               });
 
               console.log(
@@ -477,7 +480,8 @@ export function PrintQueue(props: Props) {
               const jobStatus = getPrintJobStatus(printer.created_at);
               const StatusIcon = jobStatus.icon;
               const contentSummary = getContentSummary(printer.content);
-              const isCurrentlyProcessing = processingJobId === printer.id;
+              const isCurrentlyProcessing =
+                String(processingJobId) === String(printer.id);
 
               return (
                 <div

@@ -11,8 +11,11 @@ export function DeletePrintQueue({
   onDeleted?: () => void;
 }) {
   const handleDelete = useCallback(() => {
+    const id = String(print.id)
+      .split(",")
+      .map((x) => Number(x));
     requestDatabase("/api/print-queue/delete", "DELETE", {
-      ids: [print.id],
+      ids: [...id],
     }).then(() => {
       onDeleted?.();
     });
