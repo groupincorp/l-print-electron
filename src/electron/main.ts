@@ -6,6 +6,7 @@ import { WebSocketServer } from "ws";
 
 // 1. this import won't work yet, but we will fix that next
 import "./api";
+import { PosPrinter } from "electron-pos-printer";
 
 // 2. simple check if we are running in dev / preview / production
 const isDev = process.env.DEV != undefined;
@@ -233,20 +234,43 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   runBackgroundProcess();
-  const wss = new WebSocketServer({ port: 8080 });
+  const wss = new WebSocketServer({ port: 6005 });
 
-  console.log("WebSocket server running on ws://localhost:8080");
+  console.log("WebSocket server running on ws://localhost:6005");
 
   wss.on("connection", (ws) => {
     console.log("Client connected");
     ws.send("Welcome from Electron!");
 
     ws.on("message", async (msg) => {
-      console.log("Received:", msg.toString());
       ws.send(`Echo: ${msg.toString()}`);
       // Send message to renderer process via IPC
       mainWindow?.webContents.send("ws-message", msg.toString());
-      // const data = JSON.parse(msg.toString());
+      const payload = JSON.parse(msg.toString());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const contents: any[] = payload.content || "";
+      const print_info = payload.printer_info || {};
+
+      console.log("Handling print job via WebSocket...");
+
+      const printJobs = contents.map(async (content) => {
+        try {
+          await PosPrinter.print(content, {
+            preview: false,
+            margin: "0 0 0 0",
+            copies: 1,
+            printerName: print_info.printer_name,
+            timeOutPerLine: 400,
+            silent: true,
+            pageSize: "76mm",
+            boolean: true,
+          });
+        } catch (err) {
+          console.error("Error handling print job:", err);
+        }
+      });
+
+      await Promise.all(printJobs);
     });
   });
 });
