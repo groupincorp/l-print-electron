@@ -12,6 +12,26 @@ import {
 } from "../ui/dialog";
 
 export function Logout() {
+  const handleLogout = async (resetServer = false) => {
+    try {
+      localStorage.removeItem("token");
+      if (resetServer) {
+        localStorage.removeItem("server-endpoint");
+        localStorage.removeItem("server-target");
+      }
+
+      // Notify main process that token is removed
+      if (backend.tokenChanged) {
+        await backend.tokenChanged(null);
+      }
+
+      window.location.reload();
+    } catch (error) {
+      console.error("Failed to logout:", error);
+      window.location.reload();
+    }
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -32,21 +52,13 @@ export function Logout() {
             <div className="flex flex-row gap-2">
               <Button
                 variant="destructive"
-                onClick={async () => {
-                  localStorage.removeItem("token");
-                  localStorage.removeItem("server-endpoint");
-                  localStorage.removeItem("server-target");
-                  window.location.reload();
-                }}
+                onClick={async () => handleLogout(true)}
                 className="text-black "
               >
                 Logout & Reset Server
               </Button>
               <Button
-                onClick={async () => {
-                  localStorage.removeItem("token");
-                  window.location.reload();
-                }}
+                onClick={async () => handleLogout(false)}
                 className="text-black "
               >
                 Logout

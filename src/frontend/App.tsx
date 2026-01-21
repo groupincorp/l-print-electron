@@ -16,6 +16,10 @@ function App() {
         const storedEndpoint = localStorage.getItem("server-endpoint");
         setToken(storedToken);
         setServerEndpoint(storedEndpoint);
+
+        if (backend.tokenChanged) {
+          await backend.tokenChanged(storedToken);
+        }
       } catch (error) {
         console.error("Failed to load stored data:", error);
       } finally {
@@ -25,6 +29,22 @@ function App() {
 
     loadStoredData();
   }, []);
+
+  const handleTokenChange = async (newToken: string | null) => {
+    setToken(newToken);
+
+    // Notify main process about token change
+    if (backend.tokenChanged) {
+      try {
+        await backend.tokenChanged(newToken);
+      } catch (error) {
+        console.error(
+          "Failed to notify main process about token change:",
+          error,
+        );
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -46,7 +66,7 @@ function App() {
         </div>
       );
     } else {
-      renderUI = <LoginForm onLogin={setToken} />;
+      renderUI = <LoginForm onLogin={handleTokenChange} />;
     }
   }
 

@@ -19,9 +19,15 @@ export const backend = {
   // Store methods
   store: {
     get: async (key: string) => await ipcRenderer.invoke("store-get", key),
-    set: async (key: string, value: any) => await ipcRenderer.invoke("store-set", key, value),
-    delete: async (key: string) => await ipcRenderer.invoke("store-delete", key),
+    set: async (key: string, value: any) =>
+      await ipcRenderer.invoke("store-set", key, value),
+    delete: async (key: string) =>
+      await ipcRenderer.invoke("store-delete", key),
     clear: async () => await ipcRenderer.invoke("store-clear"),
+  },
+  // Token management
+  tokenChanged: async (token: string | null): Promise<void> => {
+    return await ipcRenderer.invoke("token-changed", token);
   },
 };
 

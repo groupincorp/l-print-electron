@@ -2,11 +2,10 @@ import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { existsSync } from "fs";
 import cron from "node-cron";
 import { join } from "path";
-import { WebSocketServer } from "ws";
 
 // 1. this import won't work yet, but we will fix that next
 import "./api";
-import { PosPrinter } from "electron-pos-printer";
+import { stopWebSocketServer } from "./socket";
 
 // 2. simple check if we are running in dev / preview / production
 const isDev = process.env.DEV != undefined;
@@ -212,20 +211,12 @@ function createWindow() {
 
 // Run cron job every 10 seconds instead
 cron.schedule("*/10 * * * * *", () => {
-  console.log("⏰ Running every 10 seconds:", new Date().toISOString());
+  // console.log("⏰ Running every 10 seconds:", new Date().toISOString());
   // Example: send message to renderer
   if (mainWindow) {
     mainWindow.webContents.send("cron-event", { time: new Date() });
   }
 });
-
-function runBackgroundProcess() {
-  console.log("Background process started");
-
-  setInterval(() => {
-    console.log("Background task running every 10 seconds");
-  }, 10000);
-}
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -233,50 +224,50 @@ function runBackgroundProcess() {
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  runBackgroundProcess();
-  const wss = new WebSocketServer({ port: 6005 });
+  // const wss = new WebSocketServer({ port: 6005 });
 
-  console.log("WebSocket server running on ws://localhost:6005");
+  // console.log("WebSocket server running on ws://localhost:6005");
 
-  wss.on("connection", (ws) => {
-    console.log("Client connected");
-    ws.send("Welcome from Electron!");
+  // wss.on("connection", (ws) => {
+  //   console.log("Client connected");
+  //   ws.send("Welcome from Electron!");
 
-    ws.on("message", async (msg) => {
-      ws.send(`Echo: ${msg.toString()}`);
-      // Send message to renderer process via IPC
-      mainWindow?.webContents.send("ws-message", msg.toString());
-      const payload = JSON.parse(msg.toString());
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const contents: any[] = payload.content || "";
-      const print_info = payload.printer_info || {};
+  //   ws.on("message", async (msg) => {
+  //     ws.send(`Echo: ${msg.toString()}`);
+  //     // Send message to renderer process via IPC
+  //     mainWindow?.webContents.send("ws-message", msg.toString());
+  //     const payload = JSON.parse(msg.toString());
+  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //     const contents: any[] = payload.content || "";
+  //     const print_info = payload.printer_info || {};
 
-      console.log("Handling print job via WebSocket...");
+  //     console.log("Handling print job via WebSocket...");
 
-      const printJobs = contents.map(async (content) => {
-        try {
-          await PosPrinter.print(content, {
-            preview: false,
-            margin: "0 0 0 0",
-            copies: 1,
-            printerName: print_info.printer_name,
-            timeOutPerLine: 400,
-            silent: true,
-            pageSize: "76mm",
-            boolean: true,
-          });
-        } catch (err) {
-          console.error("Error handling print job:", err);
-        }
-      });
+  //     const printJobs = contents.map(async (content) => {
+  //       try {
+  //         await PosPrinter.print(content, {
+  //           preview: false,
+  //           margin: "0 0 0 0",
+  //           copies: 1,
+  //           printerName: print_info.printer_name,
+  //           timeOutPerLine: 400,
+  //           silent: true,
+  //           pageSize: "76mm",
+  //           boolean: true,
+  //         });
+  //       } catch (err) {
+  //         console.error("Error handling print job:", err);
+  //       }
+  //     });
 
-      await Promise.all(printJobs);
-    });
-  });
+  //     await Promise.all(printJobs);
+  //   });
+  // });
 });
 
 // Handle app events
 app.on("window-all-closed", () => {
+  stopWebSocketServer();
   // On macOS, keep app running even when all windows are closed
   // The app will continue running in the background with the tray icon
   if (process.platform !== "darwin") {
@@ -286,6 +277,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuiting = true;
+  stopWebSocketServer();
 });
 
 // Handle dock icon clicks on macOS
@@ -299,3 +291,5 @@ app.on("activate", () => {
     mainWindow.focus();
   }
 });
+
+export { mainWindow };
