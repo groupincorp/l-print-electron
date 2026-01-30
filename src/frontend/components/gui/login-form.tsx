@@ -3,35 +3,50 @@ import { requestDatabase } from "../../server/request-api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import { RefreshCw, LogIn } from "lucide-react";
+import { useToast } from "../ui/toast";
 
 const LoginForm = (props: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { showError, showSuccess } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     // Simple validation example
-    if (!username || !password) {
-      setError("Please enter both username and password.");
+    if (!username.trim() || !password.trim()) {
+      showError("Validation Error", "Please enter both username and password.");
       return;
     }
-    setError("");
-    // TODO: Add login logic here
-    requestDatabase("/api/auth/login", "POST", {
-      username,
-      password,
-    })
-      .then(async (response) => {
-        const typedResponse = response as { token: string };
-        localStorage.setItem("token", typedResponse.token);
-        props.onLogin(typedResponse.token);
-        alert(`Logging in as ${username}`);
-      })
-      .catch((error) => {
-        console.error(error);
-        setError("Login failed. Please try again.");
+
+    setIsLoading(true);
+
+    try {
+      const response = await requestDatabase("/api/auth/login", "POST", {
+        username: username.trim(),
+        password,
       });
+
+      const typedResponse = response as { token: string };
+      localStorage.setItem("token", typedResponse.token);
+      showSuccess("Login Successful", `Welcome back, ${username}!`);
+
+      // Small delay to show success message
+      setTimeout(() => {
+        props.onLogin(typedResponse.token);
+      }, 1500);
+    } catch (error) {
+      console.error("Login error:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Login failed. Please check your credentials and try again.";
+      showError("Login Failed", errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -77,16 +92,23 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
             className="text-sm px-2 py-1.5 focus:ring-2 focus:ring-emerald-400"
           />
         </div>
-        {error && (
-          <div className="text-destructive text-xs text-center mt-1">
-            {error}
-          </div>
-        )}
+
         <Button
           type="submit"
-          className="w-full h-8 text-sm mt-2 shadow-sm transition !bg-emerald-600"
+          disabled={isLoading || !username.trim() || !password.trim()}
+          className="w-full h-9 text-sm mt-3 shadow-sm transition !bg-emerald-600 hover:!bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Login
+          {isLoading ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Signing in...
+            </>
+          ) : (
+            <>
+              <LogIn className="h-4 w-4 mr-2" />
+              Login
+            </>
+          )}
         </Button>
         <Button
           type="button"

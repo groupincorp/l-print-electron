@@ -267,7 +267,7 @@ app.whenReady().then(() => {
 
 // Handle app events
 app.on("window-all-closed", () => {
-  stopWebSocketServer();
+  stopWebSocketServer(mainWindow);
   // On macOS, keep app running even when all windows are closed
   // The app will continue running in the background with the tray icon
   if (process.platform !== "darwin") {
@@ -277,7 +277,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   isQuiting = true;
-  stopWebSocketServer();
+  stopWebSocketServer(mainWindow);
 });
 
 // Handle dock icon clicks on macOS

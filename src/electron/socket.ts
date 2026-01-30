@@ -3,6 +3,7 @@ import { WebSocketServer } from "ws";
 import { PosPrinter } from "electron-pos-printer";
 
 let wss: WebSocketServer | null = null;
+let clientIP: string | undefined = undefined;
 
 export function startWebSocketServer(mainWindow: BrowserWindow | null) {
   if (wss) {
@@ -24,14 +25,17 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
       }
     });
 
-    wss.on("connection", (ws) => {
+    wss.on("connection", (ws, req) => {
       console.log("Client connected to WebSocket");
+      clientIP = req.socket.remoteAddress;
+      mainWindow?.webContents.send("log", `Client connected: ${clientIP}`);
       ws.send("Welcome from Electron!");
 
       ws.on("message", async (msg) => {
         ws.send(`Echo: ${msg.toString()}`);
         // Send message to renderer process via IPC
         mainWindow?.webContents.send("ws-message", msg.toString());
+        mainWindow?.webContents.send("log", `Received: ${msg.toString()}`);
 
         try {
           const payload = JSON.parse(msg.toString());
@@ -67,8 +71,14 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
 
       ws.on("close", () => {
         console.log("Client disconnected from WebSocket");
+        mainWindow?.webContents.send("log", `Client disconnected: ${clientIP}`);
       });
     });
+
+    mainWindow?.webContents.send(
+      "status",
+      "WebSocket server running on port 8181",
+    );
 
     wss.on("error", (error) => {
       console.error("WebSocket server error:", error);
@@ -79,7 +89,7 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
 }
 
 // Function to stop WebSocket server
-export function stopWebSocketServer() {
+export function stopWebSocketServer(mainWindow: BrowserWindow | null) {
   if (!wss) {
     console.log("WebSocket server is not running");
     return;
@@ -88,6 +98,7 @@ export function stopWebSocketServer() {
   try {
     wss.close(() => {
       console.log("WebSocket server stopped");
+      mainWindow?.webContents.send("log", `Client disconnected: ${clientIP}`);
       wss = null;
     });
   } catch (error) {

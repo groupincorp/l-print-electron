@@ -41,7 +41,7 @@ ipcMain.handle(
       startWebSocketServer(mainWindow);
     } else {
       // Token is null, stop WebSocket server
-      stopWebSocketServer();
+      stopWebSocketServer(mainWindow);
     }
   },
 );

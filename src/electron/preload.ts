@@ -29,6 +29,10 @@ export const backend = {
   tokenChanged: async (token: string | null): Promise<void> => {
     return await ipcRenderer.invoke("token-changed", token);
   },
+  onStatus: (callback: (msg: string) => void) =>
+    ipcRenderer.on("status", (_, msg) => callback(msg)),
+  onLog: (callback: (msg: string) => void) =>
+    ipcRenderer.on("log", (_, msg) => callback(msg)),
 };
 
 contextBridge.exposeInMainWorld("backend", backend);
