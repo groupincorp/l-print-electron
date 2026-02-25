@@ -1,4 +1,4 @@
-import type { BrowserWindow } from "electron";
+import { BrowserWindow } from "electron";
 import { WebSocketServer } from "ws";
 import { PosPrinter } from "electron-pos-printer";
 
@@ -48,16 +48,73 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
           const printJobs = contents.map(async (content) => {
             try {
               console.log("Printer:", print_info.printer_name);
-              await PosPrinter.print(content, {
-                preview: false,
-                margin: "0 0 0 0",
-                copies: 1,
-                printerName: print_info.printer_name,
-                timeOutPerLine: 400,
-                silent: true,
-                pageSize: "76mm",
-                boolean: true,
-              });
+              if (print_info.type === "data:text/html") {
+                const win = new BrowserWindow({ show: false });
+                const printer = (await win.webContents.getPrintersAsync()).map(
+                  (p) => p.name,
+                );
+                if (printer.includes(print_info.printer_name)) {
+                  console.log(
+                    `Printer ${print_info.printer_name} is available.`,
+                  );
+                } else {
+                  console.error(
+                    `Printer ${print_info.printer_name} is not available. Available printers: ${printer.join(", ")}`,
+                  );
+                }
+
+                // Set up the event listener BEFORE loading the URL
+                await new Promise<void>((resolve, reject) => {
+                  win.webContents.once("did-finish-load", () => {
+                    win.webContents.print(
+                      {
+                        silent: true,
+                        printBackground: true,
+                        deviceName: print_info.printer_name,
+                      },
+                      (success, failureReason) => {
+                        if (success) {
+                          console.log("Print job completed successfully");
+                        } else {
+                          console.error("Print job failed:", failureReason);
+                        }
+                        win.close();
+                        resolve();
+                      },
+                    );
+                  });
+
+                  win.webContents.once(
+                    "did-fail-load",
+                    (_event, errorCode, errorDescription) => {
+                      console.error(
+                        "Failed to load HTML:",
+                        errorCode,
+                        errorDescription,
+                      );
+                      win.close();
+                      reject(new Error(errorDescription));
+                    },
+                  );
+
+                  // Use the actual content instead of hardcoded test HTML
+                  win.loadURL(
+                    `data:text/html;charset=utf-8,${encodeURIComponent(content)}`,
+                  );
+                });
+              } else {
+                const info = {
+                  preview: false,
+                  margin: "0 0 0 0",
+                  copies: 1,
+                  printerName: print_info.printer_name,
+                  timeOutPerLine: 800,
+                  silent: true,
+                  pageSize: print_info.page_size || "76mm",
+                  boolean: true,
+                };
+                await PosPrinter.print(content, info);
+              }
             } catch (err) {
               console.error("Error handling print job:", err);
             }
