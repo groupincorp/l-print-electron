@@ -1,6 +1,11 @@
 import { BrowserWindow } from "electron";
 import { WebSocketServer } from "ws";
 import { PosPrinter } from "electron-pos-printer";
+import path from "path";
+import os from "os";
+import { generateLabel } from "./lib/label-printer";
+import { print as pdfPrint, type PrintOptions } from "pdf-to-printer";
+import fs from "fs";
 
 let wss: WebSocketServer | null = null;
 let clientIP: string | undefined = undefined;
@@ -48,6 +53,39 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
           const printJobs = contents.map(async (content) => {
             try {
               console.log("Printer:", print_info.printer_name);
+              if (print_info.type === "product_lot") {
+                const tmp = path.join(os.tmpdir(), `label_${Date.now()}.pdf`);
+                console.log("Generating label PDF at:", tmp);
+                try {
+                  if (contents.length > 0) {
+                    await generateLabel(
+                      { ...content, size: print_info.size },
+                      tmp,
+                    );
+                  }
+
+                  const options: PrintOptions & { win32Options?: string[] } = {
+                    printer: print_info.printer_name,
+                    silent: true,
+                    scale: "noscale",
+                    orientation: "portrait",
+                    win32Options: [
+                      "Resolution=600dpi",
+                      "PrintQuality=High",
+                      "FitToPage=false",
+                    ],
+                  };
+
+                  await pdfPrint(tmp, options);
+                  console.log(
+                    `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
+                  );
+                } catch (err) {
+                  console.error("Error generating or printing label:", err);
+                } finally {
+                  fs.unlink(tmp, () => {});
+                }
+              }
               if (print_info.type === "data:text/html") {
                 const win = new BrowserWindow({ show: false });
                 const printer = (await win.webContents.getPrintersAsync()).map(

@@ -224,45 +224,6 @@ cron.schedule("*/10 * * * * *", () => {
 app.whenReady().then(() => {
   createWindow();
   createTray();
-  // const wss = new WebSocketServer({ port: 6005 });
-
-  // console.log("WebSocket server running on ws://localhost:6005");
-
-  // wss.on("connection", (ws) => {
-  //   console.log("Client connected");
-  //   ws.send("Welcome from Electron!");
-
-  //   ws.on("message", async (msg) => {
-  //     ws.send(`Echo: ${msg.toString()}`);
-  //     // Send message to renderer process via IPC
-  //     mainWindow?.webContents.send("ws-message", msg.toString());
-  //     const payload = JSON.parse(msg.toString());
-  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  //     const contents: any[] = payload.content || "";
-  //     const print_info = payload.printer_info || {};
-
-  //     console.log("Handling print job via WebSocket...");
-
-  //     const printJobs = contents.map(async (content) => {
-  //       try {
-  //         await PosPrinter.print(content, {
-  //           preview: false,
-  //           margin: "0 0 0 0",
-  //           copies: 1,
-  //           printerName: print_info.printer_name,
-  //           timeOutPerLine: 400,
-  //           silent: true,
-  //           pageSize: "76mm",
-  //           boolean: true,
-  //         });
-  //       } catch (err) {
-  //         console.error("Error handling print job:", err);
-  //       }
-  //     });
-
-  //     await Promise.all(printJobs);
-  //   });
-  // });
 });
 
 // Handle app events
