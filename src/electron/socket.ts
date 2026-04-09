@@ -49,13 +49,25 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
           const print_info = payload.printer_info || {};
 
           console.log("Handling print job via WebSocket...");
+          mainWindow?.webContents.send(
+            "log",
+            "Handling print job via WebSocket...",
+          );
 
           const printJobs = contents.map(async (content) => {
             try {
               console.log("Printer:", print_info.printer_name);
+              mainWindow?.webContents.send(
+                "log",
+                `Printer: ${print_info.printer_name}`,
+              );
               if (print_info.type === "product_lot") {
                 const tmp = path.join(os.tmpdir(), `label_${Date.now()}.pdf`);
                 console.log("Generating label PDF at:", tmp);
+                mainWindow?.webContents.send(
+                  "log",
+                  `Generating label PDF at: ${tmp}`,
+                );
                 try {
                   if (contents.length > 0) {
                     await generateLabel(
@@ -80,13 +92,24 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
                   console.log(
                     `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
                   );
+                  mainWindow?.webContents.send(
+                    "log",
+                    `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
+                  );
                 } catch (err) {
                   console.error("Error generating or printing label:", err);
+                  mainWindow?.webContents.send(
+                    "log",
+                    `Error generating or printing label: ${err}`,
+                  );
                 } finally {
                   fs.unlink(tmp, () => {});
+                  mainWindow?.webContents.send(
+                    "log",
+                    `Deleted temporary file: ${tmp}`,
+                  );
                 }
-              }
-              if (print_info.type === "data:text/html") {
+              } else if (print_info.type === "data:text/html") {
                 const win = new BrowserWindow({ show: false });
                 const printer = (await win.webContents.getPrintersAsync()).map(
                   (p) => p.name,

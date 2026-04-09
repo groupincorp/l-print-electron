@@ -4,7 +4,9 @@ const path = require('path');
 
 module.exports = {
   packagerConfig: {
-    asar: true,
+    asar: {
+      unpack: "**/node_modules/pdf-to-printer/dist/*.exe",
+    },
     icon: path.resolve(__dirname, 'src/assets/printer-maintenance'), // Electron Forge will automatically append the correct extension
     extraResource: [
       path.resolve(__dirname, 'src/assets/printer-maintenance.icns'),
