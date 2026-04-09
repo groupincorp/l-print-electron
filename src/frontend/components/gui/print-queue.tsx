@@ -110,7 +110,7 @@ const getPrintJobStatus = (createdAt: string) => {
   const now = new Date();
   const created = new Date(createdAt);
   const diffMinutes = Math.floor(
-    (now.getTime() - created.getTime()) / (1000 * 60)
+    (now.getTime() - created.getTime()) / (1000 * 60),
   );
 
   if (diffMinutes < 2) {
@@ -186,12 +186,13 @@ export function PrintQueue(props: Props) {
         }
 
         console.log(
-          `Processing ${res.result.length} print jobs sequentially...`
+          `Processing ${res.result.length} print jobs sequentially...`,
         );
 
         // Process jobs one by one instead of all at once
         for (const item of res.result) {
           const jobId = item.id;
+
           if (!jobId) {
             console.warn("Job has no ID, skipping...");
             continue;
@@ -200,7 +201,7 @@ export function PrintQueue(props: Props) {
           // Try to acquire lock for this job
           if (!printLock.tryLock(jobId)) {
             console.log(
-              `Job #${jobId} is already being processed, skipping...`
+              `Job #${jobId} is already being processed, skipping...`,
             );
             continue;
           }
@@ -210,13 +211,13 @@ export function PrintQueue(props: Props) {
             try {
               const currentQueue = (await requestDatabase(
                 `/api/print-queue`,
-                "GET"
+                "GET",
               )) as {
                 result: table_print_queue[];
               };
 
               const jobStillExists = currentQueue.result.some(
-                (job) => job.id === jobId
+                (job) => job.id === jobId,
               );
               if (!jobStillExists) {
                 console.log(`Job #${jobId} already processed, skipping...`);
@@ -225,7 +226,7 @@ export function PrintQueue(props: Props) {
             } catch (checkError) {
               console.error(
                 `Error checking job #${jobId} existence:`,
-                checkError
+                checkError,
               );
               continue;
             }
@@ -245,8 +246,15 @@ export function PrintQueue(props: Props) {
             };
 
             console.log(
-              `Processing print job #${jobId} for printer: ${item.printer_info.printer_name}`
+              `Processing print job #${jobId} for printer: ${item.printer_info.printer_name}`,
             );
+
+            const ids =
+              typeof jobId === "string"
+                ? String(jobId)
+                    .split(",")
+                    .map((x) => Number(x))
+                : [jobId];
 
             // Print the job
             const response = await backend.printJob(printInfo, printOption);
@@ -254,15 +262,12 @@ export function PrintQueue(props: Props) {
 
             // Only remove from queue if print was successful
             if (response) {
-              const ids = String(jobId)
-                .split(",")
-                .map((x) => Number(x));
               await requestDatabase("/api/print-queue/delete", "DELETE", {
                 ids: [...ids],
               });
 
               console.log(
-                `Successfully completed and removed print job #${jobId}`
+                `Successfully completed and removed print job #${jobId}`,
               );
 
               // Update local state immediately
@@ -332,7 +337,7 @@ export function PrintQueue(props: Props) {
           await processQueue();
         } else {
           console.log(
-            "Cron event triggered - skipping (already processing or queue paused)"
+            "Cron event triggered - skipping (already processing or queue paused)",
           );
         }
       };
@@ -550,7 +555,7 @@ export function PrintQueue(props: Props) {
                               print={printer}
                               onDeleted={() => {
                                 setPrinters((prev) =>
-                                  prev.filter((p) => p.id !== printer.id)
+                                  prev.filter((p) => p.id !== printer.id),
                                 );
                               }}
                             />
@@ -560,7 +565,7 @@ export function PrintQueue(props: Props) {
                             <span className="font-medium">Date:</span>
                             <span className="text-gray-900">
                               {new Date(
-                                printer.created_at
+                                printer.created_at,
                               ).toLocaleDateString()}
                             </span>
                           </div>
@@ -569,7 +574,7 @@ export function PrintQueue(props: Props) {
                             <span className="font-medium">Time:</span>
                             <span className="text-gray-900">
                               {new Date(
-                                printer.created_at
+                                printer.created_at,
                               ).toLocaleTimeString()}
                             </span>
                           </div>
