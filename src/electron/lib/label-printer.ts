@@ -46,7 +46,7 @@ interface Dims {
 
 const SIZES: Record<LabelSize, Dims> = {
   small: { w: inch(1.57), h: inch(0.79), pad: mm(2.5) },
-  big: { w: inch(1.47), h: inch(1.97), pad: mm(0.01) },
+  big: { w: inch(1.47), h: inch(1.97), pad: mm(2.5) },
 };
 
 // ─── Drawing helpers ──────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { TestPrintProductLot } from "./test-print-product-lot";
 
 interface LogEntry {
   timestamp: string;
@@ -207,6 +208,8 @@ export function PrintSocket() {
             <span className="font-medium text-lg">{status}</span>
           </div>
         </div>
+
+        <TestPrintProductLot />
       </div>
 
       {/* Logs Section */}
