@@ -16,6 +16,7 @@ export interface LabelData {
   lotId: string; // UUID encoded in QR
   price: string;
   manufacturingDate: string; // ISO e.g. '2025-01-15'
+  slot: string; // e.g. 'SLOT-A01'
 }
 
 export interface PrintServerOptions {
@@ -80,21 +81,21 @@ function buildQRValue(data: LabelData): string {
 }
 
 //  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-//  │                             │  ← QR top
+//  │                             │  ← QR top 50% zone (QR + lot #)
 //  │       [  QR code  ]         │
 //  │       LOT-2025-0042         │
 //  │                             │
 //  │                             │
 //  │                             │
 //  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-//  │   EXPIRATION DATE           │  ← hero block (exp + mfg)
-//  │   2026-12-31                │
-//  │   ──────────────────        │
-//  │   MFG DATE                  │
-//  │   2025-01-15                │
-//  │   ─────────────────         │  ← secondary
-//  │   SKU           PRICE       │
-//  │   SKU-880…      $9.99       │
+//  │   EXP DATE   │  MFG DATE    │  ← hero block (exp + mfg side-by-side)
+//  │   2026-12-31 │  2025-01-15  │
+//  │   ─────────────────────     │
+//  │   SLOT                      │
+//  │   SLOT-A01                  │
+//  │   ─────────────────────     │  ← secondary
+//  │   SKU        │  PRICE       │
+//  │   SKU-880…   │  $9.99       │
 //  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
 
 async function renderBig(
@@ -141,57 +142,69 @@ async function renderBig(
   // ── BOTTOM: info block ───────────────────────────────────────────────────
   const tX = pad;
   const tW = w - pad * 2;
-  const keySize = 5.5;
-  const valSize = 8;
-  const keyLH = keySize * 1.4;
-  const valLH = valSize * 1.3;
-
-  let y = infoY + mm(1.5);
-
-  // EXPIRATION DATE
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(keySize)
-    .fillColor("#111111")
-    .text("EXPIRATION DATE", tX, y, { width: tW, lineBreak: false });
-  y += keyLH + mm(0.3);
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(valSize)
-    .fillColor("#111111")
-    .text(data.expirationDate, tX, y, { width: tW, lineBreak: false });
-  y += valLH + mm(1);
-
-  drawRule(doc, tX, y, tW - mm(2));
-  y += mm(1.2);
-
-  // MFG DATE
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(keySize)
-    .fillColor("#111111")
-    .text("MFG DATE", tX, y, { width: tW, lineBreak: false });
-  y += keyLH + mm(0.3);
-
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(valSize)
-    .fillColor("#111111")
-    .text(data.manufacturingDate, tX, y, { width: tW, lineBreak: false });
-  y += valLH + mm(1);
-
-  drawRule(doc, tX, y, tW - mm(2));
-  y += mm(1.2);
-
-  // SKU + PRICE (two columns)
-  const col1W = tW * 0.55;
-  const col2X = tX + col1W;
-  const col2W = tW - col1W;
+  const heroKeySize = 5.5;
+  const heroValSize = 8;
+  const heroKeyLH = heroKeySize * 1.4;
+  const heroValLH = heroValSize * 1.3;
   const secKeySize = 5;
   const secValSize = 6.5;
   const secKeyLH = secKeySize * 1.4;
+  const secValLH = secValSize * 1.3;
 
+  // Two equal columns for side-by-side fields
+  const col1W = tW * 0.5;
+  const col2X = tX + col1W;
+  const col2W = tW - col1W;
+
+  let y = infoY + mm(1);
+
+  // ── HERO: EXP DATE | MFG DATE ────────────────────────────────────────────
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(heroKeySize)
+    .fillColor("#111111")
+    .text("EXP DATE", tX, y, { width: col1W, lineBreak: false });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(heroKeySize)
+    .fillColor("#111111")
+    .text("MFG DATE", col2X, y, { width: col2W, lineBreak: false });
+  y += heroKeyLH + mm(0.3);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(heroValSize)
+    .fillColor("#111111")
+    .text(data.expirationDate, tX, y, { width: col1W, lineBreak: false });
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(heroValSize)
+    .fillColor("#111111")
+    .text(data.manufacturingDate, col2X, y, { width: col2W, lineBreak: false });
+  y += heroValLH + mm(0.7);
+
+  drawRule(doc, tX, y, tW - mm(2));
+  y += mm(0.8);
+
+  // ── SLOT ──────────────────────────────────────────────────────────────────
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(secKeySize)
+    .fillColor("#111111")
+    .text("SLOT", tX, y, { width: tW, lineBreak: false });
+  y += secKeyLH + mm(0.3);
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(secValSize)
+    .fillColor("#111111")
+    .text(data.slot, tX, y, { width: tW, lineBreak: false });
+  y += secValLH + mm(0.7);
+
+  drawRule(doc, tX, y, tW - mm(2));
+  y += mm(0.8);
+
+  // ── SKU | PRICE ───────────────────────────────────────────────────────────
   doc
     .font("Helvetica-Bold")
     .fontSize(secKeySize)
@@ -275,6 +288,7 @@ export function validatePayload(raw: unknown): LabelData {
     "lotId",
     "price",
     "manufacturingDate",
+    "slot",
   ] as const;
 
   const missing = required.filter((k) => !obj[k] || typeof obj[k] !== "string");
@@ -293,6 +307,7 @@ export function validatePayload(raw: unknown): LabelData {
     lotId: obj.lotId as string,
     price: obj.price as string,
     manufacturingDate: obj.manufacturingDate as string,
+    slot: obj.slot as string,
   };
 }
 
@@ -306,6 +321,7 @@ if (require.main === module) {
     lotId: "3af64575-8a9c-452e-8004-17e4fd921277",
     price: "$9.99",
     manufacturingDate: "2025-01-15",
+    slot: "SLOT-A01",
   };
 
   (async () => {
