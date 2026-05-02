@@ -17,7 +17,7 @@ import {
   RefreshCw,
   Settings,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DeletePrintQueue } from "./delete-print-queue";
 import { Logout } from "./logout";
 import { PrintTestButton } from "./test-print";
@@ -163,6 +163,11 @@ export function PrintQueue(props: Props) {
   const isProcessing = useRef(false);
   const queueIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const printerName = useMemo(
+    () => localStorage.getItem("printer_name") || "",
+    [],
+  );
+
   // Function to process print queue - Fixed to prevent duplicates
   const processQueue = useCallback(async () => {
     if (isProcessing.current || !isQueueRunning) {
@@ -172,7 +177,16 @@ export function PrintQueue(props: Props) {
     isProcessing.current = true;
 
     try {
-      const res = (await requestDatabase(`/api/print-queue`, "GET")) as {
+      const param = new URLSearchParams();
+
+      if (printerName.trim()) {
+        param.append("printer_name", printerName.trim());
+      }
+
+      const res = (await requestDatabase(
+        `/api/print-queue?${param.toString()}`,
+        "GET",
+      )) as {
         result: table_print_queue[];
       };
 
@@ -209,8 +223,12 @@ export function PrintQueue(props: Props) {
           try {
             // Double-check if job still exists before processing
             try {
+              const param = new URLSearchParams();
+              if (printerName.trim()) {
+                param.append("printer_name", printerName.trim());
+              }
               const currentQueue = (await requestDatabase(
-                `/api/print-queue`,
+                `/api/print-queue?${param.toString()}`,
                 "GET",
               )) as {
                 result: table_print_queue[];
@@ -296,7 +314,7 @@ export function PrintQueue(props: Props) {
       isProcessing.current = false;
       setProcessingJobId(null);
     }
-  }, [isQueueRunning]);
+  }, [isQueueRunning, printerName]);
 
   // Start queue loop - Fixed to prevent overlapping executions
   const startQueueLoop = useCallback(() => {

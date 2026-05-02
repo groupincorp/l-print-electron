@@ -3,13 +3,15 @@ import { requestDatabase } from "../../server/request-api";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { RefreshCw, LogIn } from "lucide-react";
+import { RefreshCw, LogIn, ChevronDown } from "lucide-react";
 import { useToast } from "../ui/toast";
 
 const LoginForm = (props: { onLogin: (token: string) => void }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [printerName, setPrinterName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPrinter, setShowPrinter] = useState(false);
   const { showError, showSuccess } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,8 +32,14 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
       });
 
       const typedResponse = response as { token: string };
+      console.log("Login successful, received token:", typedResponse.token);
+      console.log("Printer Name:", printerName.trim());
       localStorage.setItem("token", typedResponse.token);
-      showSuccess("Login Successful", `Welcome back, ${username}!`);
+      localStorage.setItem("printer_name", printerName.trim());
+      showSuccess(
+        "Login Successful",
+        `Welcome back, ${username}! ${printerName ? `Your printer: ${printerName}` : ""}`,
+      );
 
       // Small delay to show success message
       setTimeout(() => {
@@ -91,6 +99,48 @@ const LoginForm = (props: { onLogin: (token: string) => void }) => {
             autoComplete="current-password"
             className="text-sm px-2 py-1.5 focus:ring-2 focus:ring-emerald-400"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => setShowPrinter((v) => !v)}
+            className="flex items-center gap-1 w-fit text-xs font-medium text-emerald-800 pl-1 hover:text-emerald-600 transition-colors"
+          >
+            <ChevronDown
+              className="h-3.5 w-3.5 transition-transform duration-300"
+              style={{
+                transform: showPrinter ? "rotate(0deg)" : "rotate(-90deg)",
+              }}
+            />
+            <span className="text-xs">Printer Name (Optional)</span>
+            <span
+              className="ml-1 text-emerald-500 font-normal truncate max-w-[120px] transition-all duration-300"
+              style={{
+                opacity: !showPrinter && printerName ? 1 : 0,
+                maxWidth: !showPrinter && printerName ? "120px" : "0px",
+              }}
+            >
+              {printerName}
+            </span>
+          </button>
+          <div
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{
+              maxHeight: showPrinter ? "60px" : "0px",
+              opacity: showPrinter ? 1 : 0,
+            }}
+          >
+            <Input
+              id="printerName"
+              type="text"
+              placeholder="Enter your printer name"
+              value={printerName}
+              onChange={(e) => setPrinterName(e.target.value)}
+              autoComplete="off"
+              className="text-sm px-2 py-1.5 focus:ring-2 focus:ring-emerald-400"
+            />
+          </div>
         </div>
 
         <Button
