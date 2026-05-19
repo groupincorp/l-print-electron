@@ -298,7 +298,9 @@ export function PrintQueue(props: Props) {
             await new Promise((resolve) => setTimeout(resolve, 1000));
           } catch (err) {
             console.error(`Error printing job #${jobId}:`, err);
-            // Don't remove failed jobs from queue, they will be retried
+            // Don't remove failed jobs from queue, they will be retried.
+            // Wait before next attempt to avoid hammering an offline printer.
+            await new Promise((resolve) => setTimeout(resolve, 5000));
           } finally {
             // Always release the lock
             printLock.release(jobId);

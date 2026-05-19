@@ -177,6 +177,34 @@ export async function createPrintJob(
   const win = new BrowserWindow({ show: false });
 
   return new Promise<boolean>((resolve) => {
+    let settled = false;
+
+    const cleanup = (success: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      try {
+        win.close();
+      } catch {
+        /* already closed */
+      }
+      fs.unlink(tmpFile, () => {});
+      resolve(success);
+    };
+
+    // Resolve false if the IPC would time out (Electron default ~30 s)
+    const timeoutId = setTimeout(() => {
+      console.error(
+        "[LabelPrint] Print job timed out — printer may be offline",
+      );
+      cleanup(false);
+    }, 25_000);
+
+    win.webContents.once("did-fail-load", (_e, code, desc) => {
+      console.error(`[LabelPrint] HTML load failed (${code}): ${desc}`);
+      cleanup(false);
+    });
+
     win.webContents.once("did-finish-load", () => {
       win.webContents.print(
         {
@@ -200,12 +228,10 @@ export async function createPrintJob(
           ...(option.dpi && { dpi: option.dpi }),
         },
         (success, failureReason) => {
-          win.close();
-          fs.unlink(tmpFile, () => {});
           if (!success) {
             console.error("[LabelPrint] Receipt print failed:", failureReason);
           }
-          resolve(success);
+          cleanup(success);
         },
       );
     });
