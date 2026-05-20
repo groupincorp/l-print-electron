@@ -324,15 +324,12 @@ export function PrintQueue(props: Props) {
       clearInterval(queueIntervalRef.current);
     }
 
-    // Set up interval with longer delay to prevent rapid firing
+    // Run immediately once, only if not already processing
     if (!isProcessing.current) {
       processQueue();
     } else {
       console.log("Skipping queue processing - already in progress");
     }
-
-    // Run immediately once
-    processQueue();
   }, [processQueue]);
 
   // Stop queue loop
@@ -348,45 +345,33 @@ export function PrintQueue(props: Props) {
     setIsQueueRunning(!isQueueRunning);
   };
 
+  // Register cron event handler once when token is available
   useEffect(() => {
-    if (props.token && !isHandlerRegistered.current) {
-      const handler = async () => {
-        // Only process if not already processing and queue is running
-        if (!isProcessing.current && isQueueRunning) {
-          console.log("Cron event triggered - processing queue");
-          await processQueue();
-        } else {
-          console.log(
-            "Cron event triggered - skipping (already processing or queue paused)",
-          );
-        }
-      };
+    if (!props.token || isHandlerRegistered.current) return;
 
-      backend.onCronEvent(handler);
-      isHandlerRegistered.current = true;
-
-      // Start the queue loop only if queue is running
-      if (isQueueRunning) {
-        startQueueLoop();
+    const handler = async () => {
+      // Only process if not already processing and queue is running
+      if (!isProcessing.current && isQueueRunning) {
+        console.log("Cron event triggered - processing queue");
+        await processQueue();
+      } else {
+        console.log(
+          "Cron event triggered - skipping (already processing or queue paused)",
+        );
       }
+    };
 
-      // Cleanup function
-      return () => {
-        isHandlerRegistered.current = false;
-        isProcessing.current = false;
-        setProcessingJobId(null);
-        stopQueueLoop();
-        // Clear any stale locks when component unmounts
-        printLock.clearAll();
-      };
-    }
-  }, [
-    props.token,
-    isQueueRunning,
-    processQueue,
-    startQueueLoop,
-    stopQueueLoop,
-  ]);
+    backend.onCronEvent(handler);
+    isHandlerRegistered.current = true;
+
+    // Cleanup only on unmount - do NOT reset isProcessing or printLock here
+    // because in-flight print jobs still depend on them
+    return () => {
+      isHandlerRegistered.current = false;
+      printLock.clearAll();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.token]);
 
   // Effect to handle queue running state changes
   useEffect(() => {
