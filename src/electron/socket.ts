@@ -76,16 +76,10 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
                     );
                   }
 
-                  const options: PrintOptions & { win32Options?: string[] } = {
+                  const options: PrintOptions = {
                     printer: print_info.printer_name,
                     silent: true,
-                    scale: "noscale",
-                    orientation: "portrait",
-                    win32Options: [
-                      "Resolution=600dpi",
-                      "PrintQuality=High",
-                      "FitToPage=false",
-                    ],
+                    scale: "fit",
                   };
 
                   await pdfPrint(tmp, options);
@@ -97,10 +91,20 @@ export function startWebSocketServer(mainWindow: BrowserWindow | null) {
                     `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
                   );
                 } catch (err) {
-                  console.error("Error generating or printing label:", err);
+                  const e = err as NodeJS.ErrnoException & {
+                    stderr?: string;
+                    stdout?: string;
+                  };
+                  console.error(
+                    "Error generating or printing label:",
+                    e.message,
+                  );
+                  if (e.stderr) console.error("SumatraPDF stderr:", e.stderr);
+                  if (e.stdout) console.error("SumatraPDF stdout:", e.stdout);
+                  const detail = e.stderr || e.stdout || e.message;
                   mainWindow?.webContents.send(
                     "log",
-                    `Error generating or printing label: ${err}`,
+                    `Error generating or printing label: ${detail}`,
                   );
                 } finally {
                   fs.unlink(tmp, () => {});
