@@ -39,12 +39,12 @@ function resolvePageSize(
     return { width: pageSize.width * 353, height: pageSize.height * 353 };
   }
   const widthMm: Record<string, number> = {
-    "80mm": 80,
-    "78mm": 78,
-    "76mm": 76,
-    "58mm": 58,
-    "57mm": 57,
-    "44mm": 44,
+    "80mm": 80 - 5,
+    "78mm": 78 - 5,
+    "76mm": 76 - 5,
+    "58mm": 58 - 5,
+    "57mm": 57 - 5,
+    "44mm": 44 - 5,
   };
   const w = widthMm[pageSize];
   return w ? { width: w * 1000, height: 297000 } : "A4";
@@ -123,7 +123,19 @@ async function buildReceiptHtml(
       const rows = (item.tableBody ?? [])
         .map(
           (row) =>
-            `<tr>${row.map((c) => `<td style="${bStyle}">${typeof c === "string" ? c : (c.value ?? "")}</td>`).join("")}</tr>`,
+            `<tr>${row
+              .map((c) => {
+                if (typeof c === "string") {
+                  return `<td style="${bStyle}">${c}</td>`;
+                }
+                const cellStyle = toCssString(c.style as CSSStyle);
+                const cellValue = c.value ?? "";
+                const inner = cellStyle
+                  ? `<div style="${cellStyle}">${cellValue}</div>`
+                  : cellValue;
+                return `<td style="${bStyle}">${inner}</td>`;
+              })
+              .join("")}</tr>`,
         )
         .join("");
       const tf = (item.tableFooter ?? [])
@@ -215,7 +227,7 @@ export async function createPrintJob(
           color: option.color ?? false,
           landscape: option.landscape ?? false,
           pageSize: resolvePageSize(option.pageSize),
-          ...(option.margins && { margins: option.margins }),
+          margins: option.margins ?? { marginType: "none" },
           ...(option.scaleFactor !== undefined && {
             scaleFactor: option.scaleFactor,
           }),
