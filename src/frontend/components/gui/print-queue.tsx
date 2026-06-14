@@ -9,24 +9,29 @@ import { requestDatabase } from "@/server/request-api";
 import type { PosPrintData } from "electron-pos-printer";
 import {
   AlertTriangle,
-  CheckCircle,
   ChevronDown,
   FileText,
-  Hash,
+  Layers,
   Package,
   Pause,
   Play,
   Printer,
   RefreshCw,
   Settings,
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  BarChart3,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DeletePrintQueue } from "./delete-print-queue";
-import { Logout } from "./logout";
 import { PrintTestButton } from "./test-print";
 
 interface Props {
   token: string | null;
+  onQueueCountChange?: (count: number) => void;
+  onConnectionChange?: (connected: boolean) => void;
 }
 
 export interface table_print_queue {
@@ -42,37 +47,42 @@ export interface table_print_queue {
   };
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Status config ─────────────────────────────────────────────────────────────
 
 const STATUS_CFG: Record<
   QueueStatus,
-  { label: string; textCls: string; bgCls: string; dotCls: string }
+  { label: string; color: string; dot: string; badge: string }
 > = {
   idle: {
     label: "Idle",
-    textCls: "text-gray-500 dark:text-gray-400",
-    bgCls: "bg-gray-100 dark:bg-gray-800/50",
-    dotCls: "bg-gray-400",
+    color: "text-muted-foreground",
+    dot: "bg-muted-foreground",
+    badge: "bg-secondary text-secondary-foreground border-border",
   },
   processing: {
     label: "Processing",
-    textCls: "text-blue-600 dark:text-blue-400",
-    bgCls: "bg-blue-50 dark:bg-blue-950/30",
-    dotCls: "bg-blue-500 animate-pulse",
+    color: "text-blue-600 dark:text-blue-400",
+    dot: "bg-blue-500 animate-pulse",
+    badge:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800",
   },
   paused: {
     label: "Paused",
-    textCls: "text-orange-600 dark:text-orange-400",
-    bgCls: "bg-orange-50 dark:bg-orange-950/30",
-    dotCls: "bg-orange-500",
+    color: "text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500",
+    badge:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800",
   },
   error: {
-    label: "Error – retrying",
-    textCls: "text-red-600 dark:text-red-400",
-    bgCls: "bg-red-50 dark:bg-red-950/30",
-    dotCls: "bg-red-500 animate-pulse",
+    label: "Error",
+    color: "text-destructive",
+    dot: "bg-destructive animate-pulse",
+    badge:
+      "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400 dark:border-red-800",
   },
 };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getContentSummary(content: PosPrintData[]): string {
   if (!Array.isArray(content)) return "Invalid content";
@@ -82,10 +92,13 @@ function getContentSummary(content: PosPrintData[]): string {
   const other = content.length - text - img - tbl;
   const parts: string[] = [];
   if (text) parts.push(`${text} text`);
-  if (img) parts.push(`${img} image`);
-  if (tbl) parts.push(`${tbl} table`);
+  if (img) parts.push(`${img} img`);
+  if (tbl) parts.push(`${tbl} tbl`);
   if (other) parts.push(`${other} other`);
-  return parts.join(", ") + ` item${content.length !== 1 ? "s" : ""}`;
+  return (
+    parts.join(", ") ||
+    `${content.length} item${content.length !== 1 ? "s" : ""}`
+  );
 }
 
 function renderPrintContent(content: PosPrintData[]) {
@@ -93,32 +106,32 @@ function renderPrintContent(content: PosPrintData[]) {
   return content.map((item, index) => {
     if (item.type === "text") {
       return (
-        <div key={index} className="mb-2">
-          <div className="text-sm font-mono bg-muted px-3 py-2 rounded border-l-4 border-l-primary">
+        <div key={index} className="mb-1.5">
+          <div className="text-[12px] font-mono bg-secondary px-2.5 py-1.5 rounded border-l-2 border-l-primary text-foreground">
             {item.value}
           </div>
         </div>
       );
     } else if (item.type === "image") {
       return (
-        <div key={index} className="mb-2">
-          <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 px-3 py-2 rounded border-l-4 border-l-primary">
-            <Package className="h-4 w-4" />
-            <span>Image: {item.path || "Base64 image"}</span>
+        <div key={index} className="mb-1.5">
+          <div className="flex items-center gap-1.5 text-[12px] text-primary bg-accent px-2.5 py-1.5 rounded border-l-2 border-l-primary">
+            <Package className="w-3.5 h-3.5" />
+            <span>Image: {item.path || "Base64"}</span>
           </div>
         </div>
       );
     } else if (item.type === "table") {
       return (
-        <div key={index} className="mb-2">
-          <div className="text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 rounded border-l-4 border-l-emerald-400">
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="h-4 w-4" />
-              <span className="font-medium">Table Data</span>
+        <div key={index} className="mb-1.5">
+          <div className="text-[12px] text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 px-2.5 py-1.5 rounded border-l-2 border-l-emerald-500">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <FileText className="w-3.5 h-3.5" />
+              <span className="font-medium">Table</span>
             </div>
             {item.tableHeader && (
-              <div className="text-xs text-muted-foreground">
-                Headers: {item.tableHeader.join(", ")}
+              <div className="text-[11px] text-muted-foreground">
+                Cols: {item.tableHeader.join(", ")}
               </div>
             )}
           </div>
@@ -126,19 +139,83 @@ function renderPrintContent(content: PosPrintData[]) {
       );
     }
     return (
-      <div key={index} className="mb-2">
-        <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded border-l-4 border-l-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Settings className="h-4 w-4" />
-            <span className="font-medium">Type: {item.type}</span>
+      <div key={index} className="mb-1.5">
+        <div className="text-[12px] text-muted-foreground bg-secondary px-2.5 py-1.5 rounded border-l-2 border-l-border">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <Settings className="w-3.5 h-3.5" />
+            <span className="font-medium capitalize">{item.type}</span>
           </div>
-          <pre className="text-xs whitespace-pre-wrap">
+          <pre className="text-[10px] whitespace-pre-wrap opacity-70">
             {JSON.stringify(item, null, 2)}
           </pre>
         </div>
       </div>
     );
   });
+}
+
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  color,
+  subLabel,
+}: {
+  label: string;
+  value: number | string;
+  icon: React.ElementType;
+  color: "default" | "blue" | "emerald" | "amber" | "red";
+  subLabel?: string;
+}) {
+  const styles = {
+    default: {
+      bg: "bg-secondary",
+      icon: "text-muted-foreground",
+      val: "text-foreground",
+    },
+    blue: {
+      bg: "bg-blue-50 dark:bg-blue-950/20",
+      icon: "text-blue-500",
+      val: "text-blue-700 dark:text-blue-400",
+    },
+    emerald: {
+      bg: "bg-emerald-50 dark:bg-emerald-950/20",
+      icon: "text-emerald-500",
+      val: "text-emerald-700 dark:text-emerald-400",
+    },
+    amber: {
+      bg: "bg-amber-50 dark:bg-amber-950/20",
+      icon: "text-amber-500",
+      val: "text-amber-700 dark:text-amber-400",
+    },
+    red: {
+      bg: "bg-red-50 dark:bg-red-950/20",
+      icon: "text-red-500",
+      val: "text-red-700 dark:text-red-400",
+    },
+  };
+  const s = styles[color];
+
+  return (
+    <div className="bg-card border border-border rounded-xl p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[12px] font-medium text-muted-foreground uppercase tracking-wide">
+          {label}
+        </p>
+        <div
+          className={`flex items-center justify-center w-7 h-7 rounded-lg ${s.bg}`}
+        >
+          <Icon className={`w-4 h-4 ${s.icon}`} />
+        </div>
+      </div>
+      <p className={`text-2xl font-bold leading-none mb-1 ${s.val}`}>{value}</p>
+      {subLabel && (
+        <p className="text-[11px] text-muted-foreground">{subLabel}</p>
+      )}
+    </div>
+  );
 }
 
 // ── PrinterQueueCard ──────────────────────────────────────────────────────────
@@ -155,62 +232,51 @@ function PrinterQueueCard({
   onJobDeleted: (printerName: string, jobId: number) => void;
 }) {
   const cfg = STATUS_CFG[queue.status];
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-      {/* ── Queue header ── */}
-      <div
-        className={`px-4 py-3 flex items-center justify-between ${cfg.bgCls}`}
-      >
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
+      {/* ── Card header ── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3 min-w-0">
-          <Printer className={`h-5 w-5 flex-shrink-0 ${cfg.textCls}`} />
-          <span className={`font-semibold text-base truncate ${cfg.textCls}`}>
-            {queue.printerName}
-          </span>
-
-          {/* Status badge */}
-          <div
-            className={`flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full border border-current flex-shrink-0 ${cfg.textCls}`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotCls}`} />
-            {cfg.label}
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-secondary flex-shrink-0">
+            <Printer className="w-4 h-4 text-muted-foreground" />
           </div>
-
-          {/* Error detail */}
-          {queue.status === "error" && queue.lastError && (
-            <div
-              className={`hidden sm:flex items-center gap-1 text-xs ${cfg.textCls}`}
-            >
-              <AlertTriangle className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate max-w-xs">{queue.lastError}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-foreground truncate">
+                {queue.printerName}
+              </span>
+              {/* Status badge */}
+              <span
+                className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full border flex-shrink-0 ${cfg.badge}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
+                {cfg.label}
+              </span>
             </div>
-          )}
+            {queue.status === "error" && queue.lastError && (
+              <div className="flex items-center gap-1 text-[11px] text-destructive mt-0.5">
+                <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate max-w-xs">{queue.lastError}</span>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-          <span className="text-xs text-gray-400 dark:text-gray-500">
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className="text-[12px] text-muted-foreground hidden sm:block">
             {queue.jobs.length} job{queue.jobs.length !== 1 ? "s" : ""}
           </span>
-
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors ${cfg.textCls}`}
-            aria-label={open ? "Collapse" : "Expand"}
-          >
-            <ChevronDown
-              className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-            />
-          </button>
 
           {queue.isEnabled ? (
             <Button
               variant="outline"
               size="sm"
               onClick={() => onPause(queue.printerName)}
-              className="h-7 px-2 text-xs border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30"
+              className="h-7 px-2 text-[12px] gap-1"
             >
-              <Pause className="h-3 w-3 mr-1" />
+              <Pause className="w-3 h-3" />
               Pause
             </Button>
           ) : (
@@ -218,56 +284,84 @@ function PrinterQueueCard({
               variant="outline"
               size="sm"
               onClick={() => onResume(queue.printerName)}
-              className="h-7 px-2 text-xs border-green-200 dark:border-green-700 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
+              className="h-7 px-2 text-[12px] gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400"
             >
-              <Play className="h-3 w-3 mr-1" />
+              <Play className="w-3 h-3" />
               Resume
             </Button>
           )}
+
+          <button
+            onClick={() => setOpen((v) => !v)}
+            className="flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+          >
+            <ChevronDown
+              className={`w-4 h-4 transition-transform duration-200 ${open ? "" : "-rotate-90"}`}
+            />
+          </button>
         </div>
       </div>
 
       {/* ── Job list ── */}
       {open &&
         (queue.jobs.length === 0 ? (
-          <div className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500 italic">
-            No pending jobs
+          <div className="px-4 py-4 text-center text-[13px] text-muted-foreground">
+            No pending jobs in this queue
           </div>
         ) : (
-          <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+          <div className="divide-y divide-border">
+            {/* Table header */}
+            <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-4 px-4 py-2 bg-secondary/50">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-16">
+                Job ID
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Content
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Created
+              </span>
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide w-8" />
+            </div>
+
             {queue.jobs.map((job, idx) => {
               const isActive = job.id != null && job.id === queue.currentJobId;
               return (
-                <li
-                  key={job.id ?? idx}
-                  className={`text-sm transition-colors ${
-                    isActive
-                      ? "bg-blue-50 dark:bg-blue-950/20"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-800/40"
-                  }`}
-                >
-                  {/* Summary row */}
-                  <div className="flex items-center justify-between px-4 py-2 gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                <details key={job.id ?? idx} className="group">
+                  <summary
+                    className={`grid grid-cols-[auto_1fr_auto_auto] gap-x-4 px-4 py-2.5 list-none cursor-pointer items-center transition-colors ${
+                      isActive
+                        ? "bg-blue-50/60 dark:bg-blue-950/10"
+                        : "hover:bg-secondary/50"
+                    }`}
+                  >
+                    {/* Job ID */}
+                    <div className="flex items-center gap-1.5 w-16">
                       {isActive ? (
-                        <RefreshCw className="h-3.5 w-3.5 text-blue-500 animate-spin flex-shrink-0" />
+                        <Loader2 className="w-3 h-3 text-blue-500 animate-spin flex-shrink-0" />
                       ) : (
-                        <span className="h-3.5 w-3.5 flex-shrink-0 text-xs text-center text-gray-400">
-                          {idx + 1}
-                        </span>
+                        <span className="w-3 h-3 flex-shrink-0" />
                       )}
-                      <span className="font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">
-                        Job #{job.id ?? "?"}
-                      </span>
-                      <span className="text-gray-400 dark:text-gray-500 text-xs truncate">
-                        {getContentSummary(job.content)}
+                      <span className="text-[12px] font-mono font-medium text-foreground">
+                        #{job.id ?? "—"}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs text-gray-400 dark:text-gray-500 hidden sm:block">
+                    {/* Content summary */}
+                    <span className="text-[12px] text-muted-foreground truncate">
+                      {getContentSummary(job.content)}
+                    </span>
+
+                    {/* Timestamp */}
+                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground hidden sm:flex">
+                      <Clock className="w-3 h-3" />
+                      <span>
                         {new Date(job.created_at).toLocaleTimeString()}
                       </span>
+                    </div>
+
+                    {/* Delete */}
+                    <div className="w-8 flex items-center justify-center">
                       <DeletePrintQueue
                         print={job}
                         onDeleted={() =>
@@ -276,48 +370,31 @@ function PrinterQueueCard({
                         }
                       />
                     </div>
-                  </div>
+                  </summary>
 
-                  {/* Collapsible content detail */}
-                  <details className="group px-4 pb-2">
-                    <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 list-none flex items-center gap-1">
-                      <svg
-                        className="h-3 w-3 transform group-open:rotate-90 transition-transform"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 5l7 7-7 7"
-                        />
-                      </svg>
-                      View content
-                    </summary>
-                    <div className="mt-2 pl-4 border-l-2 border-gray-200 dark:border-gray-700">
-                      {renderPrintContent(job.content)}
-                    </div>
-                  </details>
-                </li>
+                  {/* Expanded content */}
+                  <div className="px-10 py-3 bg-secondary/30 border-t border-border">
+                    {renderPrintContent(job.content)}
+                  </div>
+                </details>
               );
             })}
-          </ul>
+          </div>
         ))}
     </div>
   );
 }
 
-// ── PrintQueue ────────────────────────────────────────────────────────────────
+// ── PrintQueue (main dashboard) ───────────────────────────────────────────────
 
-export function PrintQueue({ token }: Props) {
+export function PrintQueue({ token, onQueueCountChange }: Props) {
   const [queues, setQueues] = useState<PrinterQueueState[]>([]);
   const [globalEnabled, setGlobalEnabled] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const managerRef = useRef<QueueManager | null>(null);
   const isHandlerRegistered = useRef(false);
 
-  // Create manager once (stable across renders)
   if (!managerRef.current) {
     const mgr = new QueueManager();
     mgr.onQueuesChange(setQueues);
@@ -325,32 +402,30 @@ export function PrintQueue({ token }: Props) {
   }
 
   const fetchAndSync = useCallback(async () => {
+    setIsRefreshing(true);
     try {
       const res = await requestDatabase<{ result: table_print_queue[] }>(
         "/api/print-queue",
         "GET",
       );
       managerRef.current?.sync(res.result);
+      setLastRefresh(new Date());
     } catch (err) {
       console.error("Failed to fetch print queue:", err);
+    } finally {
+      setIsRefreshing(false);
     }
   }, []);
 
-  // Register cron listener once; run initial fetch
   useEffect(() => {
     if (!token || isHandlerRegistered.current) return;
-
-    // Re-attach listener every time the effect runs (handles React StrictMode
-    // double-invocation where destroy() would have nullified it).
     managerRef.current!.onQueuesChange(setQueues);
-
     backend.onCronEvent(() => {
       console.log("Cron → syncing queues");
       fetchAndSync();
     });
     isHandlerRegistered.current = true;
     fetchAndSync();
-
     return () => {
       isHandlerRegistered.current = false;
     };
@@ -381,80 +456,96 @@ export function PrintQueue({ token }: Props) {
   };
 
   const totalJobs = queues.reduce((s, q) => s + q.jobs.length, 0);
-  const activeCount = queues.filter((q) => q.status === "processing").length;
+  const processingCount = queues.filter(
+    (q) => q.status === "processing",
+  ).length;
+  const errorCount = queues.filter((q) => q.status === "error").length;
+  const idleCount = queues.filter((q) => q.status === "idle").length;
+
+  // Notify parent of queue count changes
+  useEffect(() => {
+    onQueueCountChange?.(totalJobs);
+  }, [totalJobs, onQueueCountChange]);
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-emerald-50 via-background to-blue-50 dark:from-emerald-950/20 dark:via-background dark:to-blue-950/20 overflow-hidden">
-      <div className="h-full flex flex-col p-6">
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-              <Printer className="h-6 w-6 text-emerald-700 dark:text-emerald-400" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-emerald-700 dark:text-emerald-400 tracking-tight">
-                Queue Manager
-              </h2>
-              <p className="text-sm text-emerald-600 dark:text-emerald-500">
-                {queues.length} printer{queues.length !== 1 ? "s" : ""} ·{" "}
-                {totalJobs} job{totalJobs !== 1 ? "s" : ""} pending
-                {activeCount > 0 && ` · ${activeCount} active`}
-              </p>
-            </div>
-          </div>
+    <div className="h-full flex flex-col bg-background overflow-hidden">
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* ── Stat cards row ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard
+            label="Total Printers"
+            value={queues.length}
+            icon={Printer}
+            color="default"
+            subLabel={`${idleCount} idle`}
+          />
+          <StatCard
+            label="Processing"
+            value={processingCount}
+            icon={Loader2}
+            color="blue"
+            subLabel="Active jobs"
+          />
+          <StatCard
+            label="Pending Jobs"
+            value={totalJobs}
+            icon={Layers}
+            color="amber"
+            subLabel="In queue"
+          />
+          <StatCard
+            label="Errors"
+            value={errorCount}
+            icon={XCircle}
+            color={errorCount > 0 ? "red" : "default"}
+            subLabel={errorCount > 0 ? "Needs attention" : "All clear"}
+          />
+        </div>
 
+        {/* ── Toolbar ── */}
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             {/* Global status pill */}
             <div
-              className={`text-sm px-4 py-2 rounded-full border ${
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-medium border ${
                 globalEnabled
-                  ? "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-950/30 border-green-200 dark:border-green-800"
-                  : "text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
+                  : "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-400"
               }`}
             >
-              <div className="flex items-center gap-2">
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    globalEnabled
-                      ? "bg-green-500 animate-pulse"
-                      : "bg-orange-500"
-                  }`}
-                />
-                <span className="font-medium">
-                  {globalEnabled ? "Running" : "Paused"}
-                </span>
-              </div>
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  globalEnabled
+                    ? "bg-emerald-500 animate-pulse"
+                    : "bg-amber-500"
+                }`}
+              />
+              {globalEnabled ? "Queue Running" : "Queue Paused"}
             </div>
 
-            {/* Total count */}
-            <div className="text-sm text-emerald-700 bg-emerald-100 px-4 py-2 rounded-full border border-emerald-200">
-              <div className="flex items-center gap-2">
-                <Hash className="h-4 w-4" />
-                <span className="font-medium">{totalJobs} items</span>
-              </div>
-            </div>
+            {lastRefresh && (
+              <span className="text-[11px] text-muted-foreground hidden sm:block">
+                Refreshed {lastRefresh.toLocaleTimeString()}
+              </span>
+            )}
+          </div>
 
-            {/* Global pause / resume */}
+          <div className="flex items-center gap-2">
+            <PrintTestButton />
+
             <Button
               variant="outline"
               size="sm"
               onClick={toggleGlobal}
-              className={`border-2 ${
-                globalEnabled
-                  ? "border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30"
-                  : "border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
-              }`}
+              className="h-8 text-[12px] gap-1.5"
             >
               {globalEnabled ? (
                 <>
-                  <Pause className="h-4 w-4 mr-2" />
-                  Pause All
+                  <Pause className="w-3.5 h-3.5" /> Pause All
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Resume All
+                  <Play className="w-3.5 h-3.5" /> Resume All
                 </>
               )}
             </Button>
@@ -463,28 +554,52 @@ export function PrintQueue({ token }: Props) {
               variant="outline"
               size="sm"
               onClick={fetchAndSync}
-              className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              disabled={isRefreshing}
+              className="h-8 text-[12px] gap-1.5"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin" : ""}`}
+              />
               Refresh
             </Button>
           </div>
         </div>
 
-        {/* ── Per-printer queues ── */}
-        <div className="flex-1 overflow-y-auto space-y-4">
-          {queues.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="mx-auto w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="h-8 w-8 text-emerald-600" />
-              </div>
-              <h3 className="text-lg font-medium text-emerald-700 mb-2">
-                All caught up!
-              </h3>
-              <p className="text-emerald-600">No print jobs in queue</p>
+        {/* ── Printer queue cards ── */}
+        {queues.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 mb-4">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500" />
             </div>
-          ) : (
-            queues.map((queue) => (
+            <h3 className="text-[16px] font-semibold text-foreground mb-1">
+              All queues are empty
+            </h3>
+            <p className="text-[13px] text-muted-foreground max-w-xs">
+              No print jobs are pending. New jobs will appear here
+              automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Section header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-[13px] font-semibold text-foreground">
+                  Active Queues
+                </h2>
+                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-secondary text-muted-foreground border border-border">
+                  {queues.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span>
+                  {totalJobs} total job{totalJobs !== 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+
+            {queues.map((queue) => (
               <PrinterQueueCard
                 key={queue.printerName}
                 queue={queue}
@@ -492,17 +607,9 @@ export function PrintQueue({ token }: Props) {
                 onResume={handleResume}
                 onJobDeleted={handleJobDeleted}
               />
-            ))
-          )}
-        </div>
-
-        {/* ── Footer ── */}
-        <div className="flex items-center justify-between mt-6">
-          <div className="flex items-center gap-2">
-            <Logout />
+            ))}
           </div>
-          <PrintTestButton />
-        </div>
+        )}
       </div>
     </div>
   );

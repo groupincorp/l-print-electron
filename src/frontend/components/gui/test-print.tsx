@@ -127,24 +127,24 @@ export function PrintTestButton() {
       ...options,
       printerName: input || options.printerName,
     });
-
     console.log("Print job response:", response);
   }, [input]);
 
   return (
-    <div className="flex flex-row gap-2 items-center">
+    <div className="flex items-center gap-1.5">
       <Input
         value={input}
-        placeholder="Enter printer name to test"
+        placeholder="Printer name…"
         onChange={(e) => setInput(e.target.value)}
+        className="h-8 text-[12px] w-36"
       />
       <Button
         variant="outline"
         size="sm"
         onClick={handlePrintTest}
-        className="text-black "
+        className="h-8 text-[12px] flex-shrink-0"
       >
-        Print Test
+        Test Print
       </Button>
     </div>
   );

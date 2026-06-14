@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import LoginForm from "./components/gui/login-form";
-import { PrintQueue } from "./components/gui/print-queue";
 import { ServerForm } from "./components/gui/server-form";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs";
-import { PrintSocket } from "./components/gui/print-socket";
-import { RefreshCw } from "lucide-react";
+import { AppShell } from "./components/layout/app-shell";
 import { ToastProvider } from "./components/ui/toast";
+import { ThemeProvider } from "./context/theme-provider";
 
 function App() {
   const [token, setToken] = useState<string | null>(null);
@@ -52,51 +50,42 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="w-full flex flex-1 p-4 overflow-hidden relative items-center justify-center min-h-screen">
-        <div className="flex items-center gap-3 text-emerald-700 dark:text-emerald-300">
-          <RefreshCw className="h-6 w-6 animate-spin" />
-          <span className="text-lg font-medium">Loading application...</span>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="flex items-center gap-2.5 text-muted-foreground">
+          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <span className="text-[13px] font-medium">
+            Starting Printer Manager…
+          </span>
         </div>
       </div>
     );
   }
 
-  let renderUI = <></>;
-
   if (!serverEndpoint) {
-    renderUI = <ServerForm onSave={() => window.location.reload()} />;
-  } else {
-    if (token) {
-      renderUI = (
-        <div className="w-full">
-          <Tabs defaultValue="queue" className="w-full">
-            <TabsList className="grid grid-cols-2 w-full max-w-md mx-auto mb-6">
-              <TabsTrigger value="queue" className="flex items-center gap-2">
-                <span>Print Queue</span>
-              </TabsTrigger>
-              <TabsTrigger value="socket" className="flex items-center gap-2">
-                <span>Socket Monitor</span>
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="queue" className="mt-0">
-              <PrintQueue token={token} />
-            </TabsContent>
-            <TabsContent value="socket" className="mt-0">
-              <PrintSocket />
-            </TabsContent>
-          </Tabs>
-        </div>
-      );
-    } else {
-      renderUI = <LoginForm onLogin={handleTokenChange} />;
-    }
+    return (
+      <ToastProvider>
+        <ThemeProvider>
+          <ServerForm onSave={() => window.location.reload()} />
+        </ThemeProvider>
+      </ToastProvider>
+    );
+  }
+
+  if (!token) {
+    return (
+      <ToastProvider>
+        <ThemeProvider>
+          <LoginForm onLogin={handleTokenChange} />
+        </ThemeProvider>
+      </ToastProvider>
+    );
   }
 
   return (
     <ToastProvider>
-      <div className="w-full flex flex-1 p-4 overflow-hidden relative">
-        {renderUI}
-      </div>
+      <ThemeProvider>
+        <AppShell token={token} />
+      </ThemeProvider>
     </ToastProvider>
   );
 }

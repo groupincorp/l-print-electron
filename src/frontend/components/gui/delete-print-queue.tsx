@@ -1,5 +1,5 @@
 import { requestDatabase } from "@/server/request-api";
-import { Trash } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import type { table_print_queue } from "./print-queue";
 
@@ -22,11 +22,12 @@ export function DeletePrintQueue({
   }, [print, onDeleted]);
 
   return (
-    <div
+    <button
       onClick={handleDelete}
-      className="bg-red-500 text-white p-2 cursor-pointer rounded"
+      title="Remove job"
+      className="flex items-center justify-center w-6 h-6 rounded text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
     >
-      <Trash className="h-4 w-4" />
-    </div>
+      <Trash2 className="w-3.5 h-3.5" />
+    </button>
   );
 }
