@@ -9,6 +9,10 @@ const PAGE_TITLES: Record<AppPage, { title: string; subtitle: string }> = {
     title: "Socket Monitor",
     subtitle: "Live connection logs & events",
   },
+  printers: {
+    title: "Printers",
+    subtitle: "System printer connection status",
+  },
   settings: {
     title: "Settings",
     subtitle: "Server configuration & preferences",

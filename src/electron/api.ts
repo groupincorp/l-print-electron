@@ -3,6 +3,7 @@ import { createPrintJob } from "./render";
 import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
 import { startWebSocketServer, stopWebSocketServer } from "./socket";
 import { mainWindow } from "./main";
+import { getPrinterStatuses } from "./printers";
 
 ipcMain.handle(
   "node-version",
@@ -30,6 +31,10 @@ ipcMain.handle(
     return createPrintJob(data, option);
   },
 );
+
+ipcMain.handle("get-printers", async () => {
+  return getPrinterStatuses();
+});
 
 ipcMain.handle(
   "token-changed",

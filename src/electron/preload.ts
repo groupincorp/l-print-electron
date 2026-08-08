@@ -16,6 +16,17 @@ export const backend = {
   printJob: async (printData: any[], options: any) => {
     return await ipcRenderer.invoke("create-print-job", printData, options);
   },
+  getPrinters: async (): Promise<
+    Array<{
+      name: string;
+      isDefault: boolean;
+      isConnected: boolean;
+      portName: string;
+      isLocal: boolean;
+      isNetwork: boolean;
+      reasons: string[];
+    }>
+  > => await ipcRenderer.invoke("get-printers"),
   // Store methods
   store: {
     get: async (key: string) => await ipcRenderer.invoke("store-get", key),

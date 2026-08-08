@@ -17,6 +17,7 @@ export interface LabelData {
   price: string;
   manufacturingDate: string; // ISO e.g. '2025-01-15'
   slot: string; // e.g. 'SLOT-A01'
+  productTitle: string; // e.g. 'Test Product (default)'
 }
 
 export interface PrintServerOptions {
@@ -81,11 +82,10 @@ function buildQRValue(data: LabelData): string {
 }
 
 //  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-//  │                             │  ← QR top 50% zone (QR + lot #)
+//  │                             │  ← QR zone (QR + title + lot #)
 //  │       [  QR code  ]         │
+//  │     Test Product (default)  │
 //  │       LOT-2025-0042         │
-//  │                             │
-//  │                             │
 //  │                             │
 //  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
 //  │   EXP DATE   │  MFG DATE    │  ← hero block (exp + mfg side-by-side)
@@ -105,8 +105,8 @@ async function renderBig(
 ): Promise<void> {
   const { w, h, pad } = SIZES.big;
 
-  // Top 50% QR zone, bottom 50% info zone
-  const qrRowH = h * 0.5;
+  // Top ~52% QR zone, bottom info zone
+  const qrRowH = h * 0.52;
   const infoY = qrRowH;
 
   drawBorder(doc, w, h);
@@ -121,20 +121,41 @@ async function renderBig(
     .stroke();
   doc.undash();
 
-  // ── TOP: QR code + lot number caption ────────────────────────────────────
-  const qrTopPad = mm(2);
-  const captionH = mm(5); // reserved for lot text below QR
-  const qrSize = Math.min(qrRowH - qrTopPad - captionH, w * 0.65);
+  // ── TOP: QR code + product title + lot number ───────────────────────────
+  const qrTopPad = mm(1.5);
+  const titleSize = 6.5;
+  const titleLH = titleSize * 1.1;
+  const titleH = titleLH * 2; // reserve up to 2 lines, overflow ellipsized
+  const lotSize = 6.5;
+  const lotH = mm(2.6);
+  const qrSize = Math.min(
+    qrRowH - qrTopPad - titleH - lotH - mm(1.1),
+    w * 0.62,
+  );
   const qrX = (w - qrSize) / 2;
 
   SVGtoPDF(doc, qrSvg, qrX, qrTopPad, { width: qrSize, height: qrSize });
 
+  const titleY = qrTopPad + qrSize + mm(0.8);
   doc
     .font("Helvetica-Bold")
-    .fontSize(5)
+    .fontSize(titleSize)
     .fillColor("#111111")
-    .text(data.lotNumber, 0, qrTopPad + qrSize + mm(1), {
+    .text(data.productTitle, mm(1), titleY, {
+      width: w - mm(2),
+      height: titleH,
+      align: "center",
+      ellipsis: true,
+    });
+
+  const lotY = titleY + titleH + mm(0.3);
+  doc
+    .font("Helvetica")
+    .fontSize(lotSize)
+    .fillColor("#111111")
+    .text(data.lotNumber, 0, lotY, {
       width: w,
+      height: lotH,
       align: "center",
       lineBreak: false,
     });
@@ -163,24 +184,40 @@ async function renderBig(
     .font("Helvetica-Bold")
     .fontSize(heroKeySize)
     .fillColor("#111111")
-    .text("EXP DATE", tX, y, { width: col1W, lineBreak: false });
+    .text("EXP DATE", tX, y, {
+      width: col1W,
+      height: heroKeyLH,
+      lineBreak: false,
+    });
   doc
     .font("Helvetica-Bold")
     .fontSize(heroKeySize)
     .fillColor("#111111")
-    .text("MFG DATE", col2X, y, { width: col2W, lineBreak: false });
+    .text("MFG DATE", col2X, y, {
+      width: col2W,
+      height: heroKeyLH,
+      lineBreak: false,
+    });
   y += heroKeyLH + mm(0.3);
 
   doc
     .font("Helvetica-Bold")
     .fontSize(heroValSize)
     .fillColor("#111111")
-    .text(data.expirationDate, tX, y, { width: col1W, lineBreak: false });
+    .text(data.expirationDate, tX, y, {
+      width: col1W,
+      height: heroValLH,
+      lineBreak: false,
+    });
   doc
     .font("Helvetica-Bold")
     .fontSize(heroValSize)
     .fillColor("#111111")
-    .text(data.manufacturingDate, col2X, y, { width: col2W, lineBreak: false });
+    .text(data.manufacturingDate, col2X, y, {
+      width: col2W,
+      height: heroValLH,
+      lineBreak: false,
+    });
   y += heroValLH + mm(0.7);
 
   drawRule(doc, tX, y, tW - mm(2));
@@ -191,14 +228,14 @@ async function renderBig(
     .font("Helvetica-Bold")
     .fontSize(secKeySize)
     .fillColor("#111111")
-    .text("SLOT", tX, y, { width: tW, lineBreak: false });
+    .text("SLOT", tX, y, { width: tW, height: secKeyLH, lineBreak: false });
   y += secKeyLH + mm(0.3);
 
   doc
     .font("Helvetica-Bold")
     .fontSize(secValSize)
     .fillColor("#111111")
-    .text(data.slot, tX, y, { width: tW, lineBreak: false });
+    .text(data.slot, tX, y, { width: tW, height: secValLH, lineBreak: false });
   y += secValLH + mm(0.7);
 
   drawRule(doc, tX, y, tW - mm(2));
@@ -209,12 +246,16 @@ async function renderBig(
     .font("Helvetica-Bold")
     .fontSize(secKeySize)
     .fillColor("#111111")
-    .text("SKU", tX, y, { width: col1W, lineBreak: false });
+    .text("SKU", tX, y, { width: col1W, height: secKeyLH, lineBreak: false });
   doc
     .font("Helvetica-Bold")
     .fontSize(secKeySize)
     .fillColor("#111111")
-    .text("PRICE", col2X, y, { width: col2W, lineBreak: false });
+    .text("PRICE", col2X, y, {
+      width: col2W,
+      height: secKeyLH,
+      lineBreak: false,
+    });
   y += secKeyLH + mm(0.3);
 
   const skuDisplay =
@@ -224,12 +265,20 @@ async function renderBig(
     .font("Helvetica-Bold")
     .fontSize(secValSize)
     .fillColor("#111111")
-    .text(skuDisplay, tX, y, { width: col1W, lineBreak: false });
+    .text(skuDisplay, tX, y, {
+      width: col1W,
+      height: secValLH,
+      lineBreak: false,
+    });
   doc
     .font("Helvetica-Bold")
     .fontSize(secValSize)
     .fillColor("#111111")
-    .text(data.price, col2X, y, { width: col2W, lineBreak: false });
+    .text(data.price, col2X, y, {
+      width: col2W,
+      height: secValLH,
+      lineBreak: false,
+    });
 }
 
 // ─── Public: generate label PDF ──────────────────────────────────────────────
@@ -289,6 +338,7 @@ export function validatePayload(raw: unknown): LabelData {
     "price",
     "manufacturingDate",
     "slot",
+    "productTitle",
   ] as const;
 
   const missing = required.filter((k) => !obj[k] || typeof obj[k] !== "string");
@@ -308,6 +358,7 @@ export function validatePayload(raw: unknown): LabelData {
     price: obj.price as string,
     manufacturingDate: obj.manufacturingDate as string,
     slot: obj.slot as string,
+    productTitle: obj.productTitle as string,
   };
 }
 
@@ -322,6 +373,7 @@ if (require.main === module) {
     price: "$9.99",
     manufacturingDate: "2025-01-15",
     slot: "SLOT-A01",
+    productTitle: "Test Product (default)",
   };
 
   (async () => {

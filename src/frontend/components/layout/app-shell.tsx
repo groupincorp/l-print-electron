@@ -4,6 +4,7 @@ import { Topbar } from "./topbar";
 import { PrintQueue } from "@/components/gui/print-queue";
 import { PrintSocket } from "@/components/gui/print-socket";
 import { ServerForm } from "@/components/gui/server-form";
+import { PrinterList } from "@/components/gui/printer-list";
 
 interface AppShellProps {
   token: string | null;
@@ -36,6 +37,7 @@ export function AppShell({ token }: AppShellProps) {
           {activePage === "socket" && (
             <PrintSocket onConnectionChange={setIsConnected} />
           )}
+          {activePage === "printers" && <PrinterList />}
           {activePage === "settings" && (
             <ServerForm onSave={() => {}} embedded />
           )}

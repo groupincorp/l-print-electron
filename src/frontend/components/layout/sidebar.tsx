@@ -3,10 +3,11 @@ import {
   Radio,
   Settings,
   Printer,
+  PrinterCheck,
   ChevronRight,
 } from "lucide-react";
 
-export type AppPage = "queue" | "socket" | "settings";
+export type AppPage = "queue" | "socket" | "printers" | "settings";
 
 interface NavItem {
   id: AppPage;
@@ -24,6 +25,7 @@ interface SidebarProps {
 const NAV_ITEMS: NavItem[] = [
   { id: "queue", label: "Dashboard", icon: LayoutDashboard },
   { id: "socket", label: "Socket Monitor", icon: Radio },
+  { id: "printers", label: "Printers", icon: PrinterCheck },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
