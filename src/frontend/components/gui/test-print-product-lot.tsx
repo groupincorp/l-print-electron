@@ -19,6 +19,8 @@ function getSamplePrintData(inputPrinterName?: string) {
       price: "$9.99",
       manufacturingDate: "2025-01-15",
       slot: "SLOT-A01",
+      productTitle: "កំប៉ុងខ្ចប់ជ្រក់បាយ 4 oz (ស្តុកធំ) (Case)",
+      barcode: "CKPC-014",
     },
   ];
   return { contents, options };

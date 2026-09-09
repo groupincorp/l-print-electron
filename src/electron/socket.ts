@@ -1,233 +1,447 @@
 import { BrowserWindow } from "electron";
-import { WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { PosPrinter } from "electron-pos-printer";
 import path from "path";
 import os from "os";
+import { randomUUID } from "crypto";
 import { generateLabel } from "./lib/label-printer";
+import { getLanAddresses } from "./lib/network";
+import { tryAddFirewallRuleQuietly } from "./lib/firewall";
 import { print as pdfPrint, type PrintOptions } from "pdf-to-printer";
 import fs from "fs";
 
+const HOST = "0.0.0.0";
+const PORT = 8181;
+const HEARTBEAT_INTERVAL = 30_000;
+
+interface SocketConfig {
+  authEnabled: boolean;
+  token: string;
+}
+
+interface ClientMeta {
+  id: string;
+  ip: string;
+  isAlive: boolean;
+  connectedAt: number;
+}
+
 let wss: WebSocketServer | null = null;
-let clientIP: string | undefined = undefined;
+let heartbeatTimer: NodeJS.Timeout | null = null;
+let currentWindow: BrowserWindow | null = null;
+
+const socketConfig: SocketConfig = { authEnabled: false, token: "" };
+const clients = new Map<WebSocket, ClientMeta>();
+
+// Serializes work per printer so two devices targeting the same printer queue
+// instead of interleaving their output. Different printers still run in parallel.
+const printerChains = new Map<string, Promise<unknown>>();
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function log(message: string) {
+  console.log(message);
+  currentWindow?.webContents.send("log", message);
+}
+
+function sendJson(ws: WebSocket, payload: unknown) {
+  try {
+    ws.send(JSON.stringify(payload));
+  } catch (err) {
+    console.error("Failed to send WebSocket message:", err);
+  }
+}
+
+function broadcastClients() {
+  const list = Array.from(clients.values()).map((c) => ({
+    id: c.id,
+    ip: c.ip,
+    connectedAt: c.connectedAt,
+  }));
+  currentWindow?.webContents.send("ws-clients", {
+    count: list.length,
+    clients: list,
+  });
+}
+
+function normalizeIp(ip: string | undefined): string {
+  if (!ip) return "unknown";
+  // Strip the IPv4-mapped IPv6 prefix Node adds for dual-stack sockets.
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip;
+}
+
+function isAuthorized(reqUrl: string | undefined): boolean {
+  if (!socketConfig.authEnabled) return true;
+  if (!socketConfig.token) return true;
+  try {
+    const url = new URL(reqUrl ?? "/", "http://localhost");
+    const provided =
+      url.searchParams.get("token") ?? url.searchParams.get("t") ?? "";
+    return provided === socketConfig.token;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Print branches ───────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function printProductLot(content: any, printInfo: any): Promise<void> {
+  const tmp = path.join(os.tmpdir(), `label_${Date.now()}_${randomUUID()}.pdf`);
+  log(`Generating label PDF at: ${tmp}`);
+  try {
+    await generateLabel({ ...content, size: printInfo.size }, tmp);
+
+    const options: PrintOptions = {
+      printer: printInfo.printer_name,
+      silent: true,
+      scale: "fit",
+    };
+
+    await pdfPrint(tmp, options);
+    log(`[LabelPrint] ✓ Printed [${printInfo.size}]: ${content.sku}`);
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & {
+      stderr?: string;
+      stdout?: string;
+    };
+    const detail = e.stderr || e.stdout || e.message;
+    log(`Error generating or printing label: ${detail}`);
+    throw new Error(detail);
+  } finally {
+    fs.unlink(tmp, () => {});
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function printHtml(content: any, printInfo: any): Promise<void> {
+  const win = new BrowserWindow({ show: false });
+  try {
+    const available = (await win.webContents.getPrintersAsync()).map(
+      (p) => p.name,
+    );
+    if (!available.includes(printInfo.printer_name)) {
+      log(
+        `Printer ${printInfo.printer_name} is not available. Available: ${available.join(", ")}`,
+      );
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      win.webContents.once("did-finish-load", () => {
+        win.webContents.print(
+          {
+            silent: true,
+            printBackground: true,
+            deviceName: printInfo.printer_name,
+          },
+          (success, failureReason) => {
+            if (success) resolve();
+            else reject(new Error(failureReason || "Print job failed"));
+          },
+        );
+      });
+
+      win.webContents.once("did-fail-load", (_e, code, description) => {
+        reject(new Error(`Failed to load HTML (${code}): ${description}`));
+      });
+
+      win.loadURL(
+        `data:text/html;charset=utf-8,${encodeURIComponent(content)}`,
+      );
+    });
+  } finally {
+    if (!win.isDestroyed()) win.close();
+  }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function printPos(content: any, printInfo: any): Promise<void> {
+  const info = {
+    preview: false,
+    margin: "0 0 0 0",
+    copies: 1,
+    printerName: printInfo.printer_name,
+    timeOutPerLine: 800,
+    silent: true,
+    pageSize: printInfo.page_size || "76mm",
+    boolean: true,
+  };
+  await PosPrinter.print(content, info);
+}
+
+interface ItemResult {
+  index: number;
+  ok: boolean;
+  error?: string;
+}
+
+async function processContents(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  contents: any[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  printInfo: any,
+): Promise<ItemResult[]> {
+  const results: ItemResult[] = [];
+
+  for (let index = 0; index < contents.length; index++) {
+    const content = contents[index];
+    try {
+      log(`Printing item ${index + 1}/${contents.length} on ${printInfo.printer_name}`);
+      if (printInfo.type === "product_lot") {
+        await printProductLot(content, printInfo);
+      } else if (printInfo.type === "data:text/html") {
+        await printHtml(content, printInfo);
+      } else {
+        await printPos(content, printInfo);
+      }
+      results.push({ index, ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log(`Error handling print item ${index + 1}: ${message}`);
+      results.push({ index, ok: false, error: message });
+    }
+  }
+
+  return results;
+}
+
+// ─── Message handling ─────────────────────────────────────────────────────────
+
+async function handleMessage(ws: WebSocket, raw: string) {
+  currentWindow?.webContents.send("ws-message", raw);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let payload: any;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    log(`Received non-JSON message: ${raw}`);
+    sendJson(ws, { type: "error", message: "Invalid JSON payload" });
+    return;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contents: any[] = Array.isArray(payload.content) ? payload.content : [];
+  const printInfo = payload.printer_info || {};
+  const jobId: string = payload.jobId || payload.job_id || randomUUID();
+
+  if (contents.length === 0) {
+    sendJson(ws, {
+      type: "job_result",
+      jobId,
+      ok: false,
+      error: "No content to print",
+      results: [],
+    });
+    return;
+  }
+
+  const printerName = printInfo.printer_name || "default";
+  log(`Handling print job ${jobId} → ${printerName} (${contents.length} item(s))`);
+  sendJson(ws, { type: "ack", jobId, items: contents.length });
+
+  const previous = printerChains.get(printerName) ?? Promise.resolve();
+  const work = previous.then(() => processContents(contents, printInfo));
+  printerChains.set(
+    printerName,
+    work.catch(() => undefined),
+  );
+
+  let results: ItemResult[];
+  try {
+    results = await work;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    results = contents.map((_, index) => ({ index, ok: false, error: message }));
+  }
+
+  const ok = results.every((r) => r.ok);
+  log(`Print job ${jobId} finished — ${ok ? "OK" : "with errors"}`);
+  sendJson(ws, { type: "job_result", jobId, ok, results });
+}
+
+// ─── Heartbeat ────────────────────────────────────────────────────────────────
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    for (const [ws, meta] of clients) {
+      if (!meta.isAlive) {
+        log(`Dropping unresponsive client: ${meta.ip}`);
+        clients.delete(ws);
+        ws.terminate();
+        continue;
+      }
+      meta.isAlive = false;
+      try {
+        ws.ping();
+      } catch {
+        /* socket already gone */
+      }
+    }
+    broadcastClients();
+  }, HEARTBEAT_INTERVAL);
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 export function startWebSocketServer(mainWindow: BrowserWindow | null) {
+  currentWindow = mainWindow;
+
   if (wss) {
     console.log("WebSocket server is already running");
     return;
   }
 
   try {
-    wss = new WebSocketServer({ port: 8181, host: "127.0.0.1" });
+    wss = new WebSocketServer({ port: PORT, host: HOST });
+
     wss.on("listening", () => {
-      const address = wss?.address();
-      if (address && typeof address === "object") {
-        console.log(
-          "WebSocket server listening on ws://" +
-            address.address +
-            ":" +
-            address.port,
+      const addresses = getLanAddresses()
+        .map((a) => `ws://${a.address}:${PORT}`)
+        .join(", ");
+      log(
+        `WebSocket server listening on ${HOST}:${PORT}` +
+          (addresses ? ` — reachable at ${addresses}` : ""),
+      );
+      currentWindow?.webContents.send(
+        "status",
+        `WebSocket server running on port ${PORT}`,
+      );
+      tryAddFirewallRuleQuietly();
+    });
+
+    wss.on("connection", (ws, req) => {
+      const ip = normalizeIp(req.socket.remoteAddress);
+
+      if (!isAuthorized(req.url)) {
+        log(`Rejected unauthorized client: ${ip}`);
+        sendJson(ws, { type: "error", message: "Unauthorized" });
+        ws.close(4401, "unauthorized");
+        return;
+      }
+
+      const meta: ClientMeta = {
+        id: randomUUID(),
+        ip,
+        isAlive: true,
+        connectedAt: Date.now(),
+      };
+      clients.set(ws, meta);
+      log(`Client connected: ${ip} (${clients.size} total)`);
+      broadcastClients();
+      sendJson(ws, { type: "welcome", message: "Connected to Printer Maintenance" });
+
+      ws.on("pong", () => {
+        const m = clients.get(ws);
+        if (m) m.isAlive = true;
+      });
+
+      ws.on("message", (data) => {
+        void handleMessage(ws, data.toString());
+      });
+
+      ws.on("close", () => {
+        clients.delete(ws);
+        log(`Client disconnected: ${ip} (${clients.size} total)`);
+        broadcastClients();
+      });
+
+      ws.on("error", (err) => {
+        console.error(`Client socket error (${ip}):`, err.message);
+      });
+    });
+
+    wss.on("error", (err: NodeJS.ErrnoException) => {
+      console.error("WebSocket server error:", err);
+      if (err.code === "EADDRINUSE") {
+        currentWindow?.webContents.send(
+          "status",
+          `Port ${PORT} is already in use — close the other program using it and restart`,
+        );
+        wss = null;
+        stopHeartbeat();
+      } else {
+        currentWindow?.webContents.send(
+          "status",
+          `WebSocket server error: ${err.message}`,
         );
       }
     });
 
-    wss.on("connection", (ws, req) => {
-      console.log("Client connected to WebSocket");
-      clientIP = req.socket.remoteAddress;
-      mainWindow?.webContents.send("log", `Client connected: ${clientIP}`);
-      ws.send("Welcome from Electron!");
-
-      ws.on("message", async (msg) => {
-        ws.send(`Echo: ${msg.toString()}`);
-        // Send message to renderer process via IPC
-        mainWindow?.webContents.send("ws-message", msg.toString());
-        mainWindow?.webContents.send("log", `Received: ${msg.toString()}`);
-
-        try {
-          const payload = JSON.parse(msg.toString());
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const contents: any[] = payload.content || [];
-          const print_info = payload.printer_info || {};
-
-          console.log("Handling print job via WebSocket...");
-          mainWindow?.webContents.send(
-            "log",
-            "Handling print job via WebSocket...",
-          );
-
-          const printJobs = contents.map(async (content) => {
-            try {
-              console.log("Printer:", print_info.printer_name);
-              mainWindow?.webContents.send(
-                "log",
-                `Printer: ${print_info.printer_name}`,
-              );
-              if (print_info.type === "product_lot") {
-                const tmp = path.join(os.tmpdir(), `label_${Date.now()}.pdf`);
-                console.log("Generating label PDF at:", tmp);
-                mainWindow?.webContents.send(
-                  "log",
-                  `Generating label PDF at: ${tmp}`,
-                );
-                try {
-                  if (contents.length > 0) {
-                    await generateLabel(
-                      { ...content, size: print_info.size },
-                      tmp,
-                    );
-                  }
-
-                  const options: PrintOptions = {
-                    printer: print_info.printer_name,
-                    silent: true,
-                    scale: "fit",
-                  };
-
-                  await pdfPrint(tmp, options);
-                  console.log(
-                    `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
-                  );
-                  mainWindow?.webContents.send(
-                    "log",
-                    `[LabelPrint] ✓ Printed [${print_info.size}]: ${content.sku}`,
-                  );
-                } catch (err) {
-                  const e = err as NodeJS.ErrnoException & {
-                    stderr?: string;
-                    stdout?: string;
-                  };
-                  console.error(
-                    "Error generating or printing label:",
-                    e.message,
-                  );
-                  if (e.stderr) console.error("SumatraPDF stderr:", e.stderr);
-                  if (e.stdout) console.error("SumatraPDF stdout:", e.stdout);
-                  const detail = e.stderr || e.stdout || e.message;
-                  mainWindow?.webContents.send(
-                    "log",
-                    `Error generating or printing label: ${detail}`,
-                  );
-                } finally {
-                  fs.unlink(tmp, () => {});
-                  mainWindow?.webContents.send(
-                    "log",
-                    `Deleted temporary file: ${tmp}`,
-                  );
-                }
-              } else if (print_info.type === "data:text/html") {
-                const win = new BrowserWindow({ show: false });
-                const printer = (await win.webContents.getPrintersAsync()).map(
-                  (p) => p.name,
-                );
-                if (printer.includes(print_info.printer_name)) {
-                  console.log(
-                    `Printer ${print_info.printer_name} is available.`,
-                  );
-                } else {
-                  console.error(
-                    `Printer ${print_info.printer_name} is not available. Available printers: ${printer.join(", ")}`,
-                  );
-                }
-
-                // Set up the event listener BEFORE loading the URL
-                await new Promise<void>((resolve, reject) => {
-                  win.webContents.once("did-finish-load", () => {
-                    win.webContents.print(
-                      {
-                        silent: true,
-                        printBackground: true,
-                        deviceName: print_info.printer_name,
-                      },
-                      (success, failureReason) => {
-                        if (success) {
-                          console.log("Print job completed successfully");
-                        } else {
-                          console.error("Print job failed:", failureReason);
-                        }
-                        win.close();
-                        resolve();
-                      },
-                    );
-                  });
-
-                  win.webContents.once(
-                    "did-fail-load",
-                    (_event, errorCode, errorDescription) => {
-                      console.error(
-                        "Failed to load HTML:",
-                        errorCode,
-                        errorDescription,
-                      );
-                      win.close();
-                      reject(new Error(errorDescription));
-                    },
-                  );
-
-                  // Use the actual content instead of hardcoded test HTML
-                  win.loadURL(
-                    `data:text/html;charset=utf-8,${encodeURIComponent(content)}`,
-                  );
-                });
-              } else {
-                const info = {
-                  preview: false,
-                  margin: "0 0 0 0",
-                  copies: 1,
-                  printerName: print_info.printer_name,
-                  timeOutPerLine: 800,
-                  silent: true,
-                  pageSize: print_info.page_size || "76mm",
-                  boolean: true,
-                };
-                await PosPrinter.print(content, info);
-              }
-            } catch (err) {
-              console.error("Error handling print job:", err);
-            }
-          });
-
-          await Promise.all(printJobs);
-        } catch (err) {
-          console.error("Error parsing WebSocket message:", err);
-        }
-      });
-
-      ws.on("close", () => {
-        console.log("Client disconnected from WebSocket");
-        mainWindow?.webContents.send("log", `Client disconnected: ${clientIP}`);
-      });
-    });
-
-    mainWindow?.webContents.send(
-      "status",
-      "WebSocket server running on port 8181",
-    );
-
-    wss.on("error", (error) => {
-      console.error("WebSocket server error:", error);
-    });
+    startHeartbeat();
   } catch (error) {
     console.error("Failed to start WebSocket server:", error);
+    currentWindow?.webContents.send(
+      "status",
+      `Failed to start WebSocket server: ${(error as Error).message}`,
+    );
   }
 }
 
-// Function to stop WebSocket server
 export function stopWebSocketServer(mainWindow: BrowserWindow | null) {
+  currentWindow = mainWindow ?? currentWindow;
+
   if (!wss) {
     console.log("WebSocket server is not running");
     return;
   }
 
+  stopHeartbeat();
+
+  for (const ws of clients.keys()) {
+    try {
+      ws.terminate();
+    } catch {
+      /* ignore */
+    }
+  }
+  clients.clear();
+  broadcastClients();
+
   try {
     wss.close(() => {
       console.log("WebSocket server stopped");
-      mainWindow?.webContents.send("log", `Client disconnected: ${clientIP}`);
+      currentWindow?.webContents.send("status", "WebSocket server stopped");
       wss = null;
     });
   } catch (error) {
     console.error("Error stopping WebSocket server:", error);
+    wss = null;
   }
 }
 
 export function getWebSocketServerStatus() {
   return wss !== null;
+}
+
+export function configureWebSocketServer(config: Partial<SocketConfig>) {
+  if (typeof config.authEnabled === "boolean") {
+    socketConfig.authEnabled = config.authEnabled;
+  }
+  if (typeof config.token === "string") {
+    socketConfig.token = config.token.trim();
+  }
+  console.log(
+    `Socket auth ${socketConfig.authEnabled ? "enabled" : "disabled"}`,
+  );
+}
+
+export function getSocketInfo() {
+  return {
+    running: wss !== null,
+    host: HOST,
+    port: PORT,
+    addresses: getLanAddresses().map((a) => a.address),
+    authEnabled: socketConfig.authEnabled,
+    clientCount: clients.size,
+    clientIps: Array.from(clients.values()).map((c) => c.ip),
+  };
 }

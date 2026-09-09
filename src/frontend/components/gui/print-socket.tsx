@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import QRCode from "qrcode";
 import {
   CheckCircle2,
   AlertCircle,
@@ -10,10 +11,30 @@ import {
   Download,
   Wifi,
   WifiOff,
+  MonitorSmartphone,
+  ShieldCheck,
+  ShieldAlert,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { TestPrintProductLot } from "./test-print-product-lot";
+
+interface SocketInfo {
+  running: boolean;
+  host: string;
+  port: number;
+  addresses: string[];
+  authEnabled: boolean;
+  clientCount: number;
+  clientIps: string[];
+}
+
+interface ConnectedClient {
+  id: string;
+  ip: string;
+  connectedAt: number;
+}
 
 interface LogEntry {
   timestamp: string;
@@ -62,9 +83,89 @@ export function PrintSocket({ onConnectionChange }: PrintSocketProps) {
   const [status, setStatus] = useState("Server not started");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [socketInfo, setSocketInfo] = useState<SocketInfo | null>(null);
+  const [clients, setClients] = useState<ConnectedClient[]>([]);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [firewallStatus, setFirewallStatus] = useState<
+    "allowed" | "missing" | "unknown" | "checking"
+  >("checking");
+  const [addingRule, setAddingRule] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const maxLogs = 1000;
   const { showSuccess, showError, showInfo } = useToast();
+
+  const storedToken =
+    (typeof localStorage !== "undefined" &&
+      localStorage.getItem("socket-token")) ||
+    "";
+
+  const buildUrl = useCallback(
+    (ip: string) => {
+      const base = `ws://${ip}:${socketInfo?.port ?? 8181}`;
+      return socketInfo?.authEnabled && storedToken
+        ? `${base}/?token=${encodeURIComponent(storedToken)}`
+        : base;
+    },
+    [socketInfo?.port, socketInfo?.authEnabled, storedToken],
+  );
+
+  const refreshSocketInfo = useCallback(async () => {
+    try {
+      const info = await backend.getSocketInfo();
+      setSocketInfo(info);
+    } catch (err) {
+      console.error("Failed to load socket info:", err);
+    }
+  }, []);
+
+  const refreshFirewall = useCallback(async () => {
+    try {
+      const s = await backend.getFirewallStatus?.();
+      setFirewallStatus(s ?? "unknown");
+    } catch {
+      setFirewallStatus("unknown");
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSocketInfo();
+    refreshFirewall();
+    backend.onSocketClients?.((data) => {
+      setClients(data.clients);
+    });
+  }, [refreshSocketInfo, refreshFirewall]);
+
+  const handleAddFirewallRule = useCallback(async () => {
+    setAddingRule(true);
+    try {
+      const result = await backend.addFirewallRule();
+      if (result.ok) {
+        showSuccess("Firewall updated", result.message);
+        setFirewallStatus("allowed");
+      } else {
+        showError("Firewall not updated", result.message);
+      }
+      await refreshFirewall();
+    } catch {
+      showError("Firewall not updated", "Could not run the firewall command.");
+    } finally {
+      setAddingRule(false);
+    }
+  }, [refreshFirewall, showSuccess, showError]);
+
+  const primaryUrl = socketInfo?.addresses?.[0]
+    ? buildUrl(socketInfo.addresses[0])
+    : null;
+
+  useEffect(() => {
+    if (!primaryUrl) {
+      setQrDataUrl(null);
+      return;
+    }
+    QRCode.toDataURL(primaryUrl, { width: 160, margin: 1 })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+  }, [primaryUrl]);
 
   const scrollToBottom = () => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -84,12 +185,13 @@ export function PrintSocket({ onConnectionChange }: PrintSocketProps) {
       setIsConnected(connected);
       onConnectionChange?.(connected);
       addLog(msg, "info");
+      refreshSocketInfo();
     });
 
     backend.onLog((msg) => {
       addLog(msg, getLogLevel(msg));
     });
-  }, [onConnectionChange]);
+  }, [onConnectionChange, refreshSocketInfo]);
 
   const addLog = (
     message: string,
@@ -243,6 +345,153 @@ export function PrintSocket({ onConnectionChange }: PrintSocketProps) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── Device connection ── */}
+        <div className="bg-card border border-border rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <MonitorSmartphone className="w-4 h-4 text-muted-foreground" />
+            <p className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">
+              Device Connection
+            </p>
+            {socketInfo?.authEnabled && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400">
+                <ShieldCheck className="w-3 h-3" />
+                Token required
+              </span>
+            )}
+          </div>
+
+          {!socketInfo?.running ? (
+            <p className="text-[12px] text-muted-foreground">
+              Server not running. Sign in to start the print server.
+            </p>
+          ) : socketInfo.addresses.length === 0 ? (
+            <p className="text-[12px] text-muted-foreground">
+              No network address found. Connect this PC to Wi-Fi or Ethernet.
+            </p>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1 space-y-2">
+                <p className="text-[12px] text-muted-foreground">
+                  On the device, set the printer server address to:
+                </p>
+                {socketInfo.addresses.map((ip) => {
+                  const url = buildUrl(ip);
+                  return (
+                    <div
+                      key={ip}
+                      className="flex items-center gap-2 bg-secondary/50 border border-border rounded-md px-2.5 py-1.5"
+                    >
+                      <code className="flex-1 text-[12px] font-mono break-all text-foreground">
+                        {url}
+                      </code>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-1.5 text-[11px] gap-1 flex-shrink-0"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(url);
+                            showSuccess("Copied", url);
+                          } catch {
+                            showError("Copy failed", "Clipboard unavailable");
+                          }
+                        }}
+                      >
+                        <Copy className="w-3 h-3" />
+                        Copy
+                      </Button>
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-muted-foreground/70 leading-relaxed">
+                  The device must be on the same Wi-Fi as this PC.
+                </p>
+
+                {/* Firewall status / action */}
+                {firewallStatus !== "unknown" && (
+                  <div
+                    className={`flex items-center gap-2 rounded-md border px-2.5 py-2 text-[11px] ${
+                      firewallStatus === "allowed"
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400"
+                        : firewallStatus === "missing"
+                          ? "bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-300"
+                          : "bg-secondary border-border text-muted-foreground"
+                    }`}
+                  >
+                    {firewallStatus === "checking" ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                        Checking the firewall…
+                      </>
+                    ) : firewallStatus === "allowed" ? (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                        The firewall allows incoming connections.
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="flex-1">
+                          The firewall is blocking incoming connections. Devices
+                          on the network can't connect yet.
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] gap-1 flex-shrink-0"
+                          disabled={addingRule}
+                          onClick={handleAddFirewallRule}
+                        >
+                          {addingRule ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <ShieldCheck className="w-3 h-3" />
+                          )}
+                          Allow connections
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <div className="pt-1">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Connected devices: {clients.length || socketInfo.clientCount}
+                  </span>
+                  {(clients.length > 0 || socketInfo.clientIps.length > 0) && (
+                    <ul className="mt-1 space-y-0.5">
+                      {(clients.length > 0
+                        ? clients.map((c) => c.ip)
+                        : socketInfo.clientIps
+                      ).map((ip, i) => (
+                        <li
+                          key={`${ip}-${i}`}
+                          className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400"
+                        >
+                          ● {ip}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {qrDataUrl && (
+                <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                  <img
+                    src={qrDataUrl}
+                    alt="Server address QR code"
+                    className="w-[140px] h-[140px] rounded-md border border-border bg-white p-1"
+                  />
+                  <span className="text-[10px] text-muted-foreground">
+                    Scan on device
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Test print section ── */}

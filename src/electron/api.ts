@@ -1,9 +1,15 @@
 import { ipcMain, type IpcMainInvokeEvent } from "electron";
 import { createPrintJob } from "./render";
 import type { PosPrintData, PosPrintOptions } from "electron-pos-printer";
-import { startWebSocketServer, stopWebSocketServer } from "./socket";
+import {
+  startWebSocketServer,
+  stopWebSocketServer,
+  configureWebSocketServer,
+  getSocketInfo,
+} from "./socket";
 import { mainWindow } from "./main";
 import { getPrinterStatuses } from "./printers";
+import { getFirewallStatus, addFirewallRule } from "./lib/firewall";
 
 ipcMain.handle(
   "node-version",
@@ -34,6 +40,25 @@ ipcMain.handle(
 
 ipcMain.handle("get-printers", async () => {
   return getPrinterStatuses();
+});
+
+ipcMain.handle("get-socket-info", async () => {
+  return getSocketInfo();
+});
+
+ipcMain.handle(
+  "socket-config-changed",
+  async (_, config: { authEnabled?: boolean; token?: string }) => {
+    configureWebSocketServer(config);
+  },
+);
+
+ipcMain.handle("get-firewall-status", async () => {
+  return getFirewallStatus();
+});
+
+ipcMain.handle("add-firewall-rule", async () => {
+  return addFirewallRule();
 });
 
 ipcMain.handle(

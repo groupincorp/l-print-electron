@@ -25,6 +25,8 @@ type TestStatus = "idle" | "testing" | "success" | "failed";
 
 export function ServerForm({ onSave, embedded = false }: Props) {
   const [endpoint, setEndpoint] = useState("");
+  const [socketAuthEnabled, setSocketAuthEnabled] = useState(false);
+  const [socketToken, setSocketToken] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
@@ -36,6 +38,10 @@ export function ServerForm({ onSave, embedded = false }: Props) {
       try {
         const storedEndpoint = localStorage.getItem("server-endpoint");
         setEndpoint(storedEndpoint || "");
+        setSocketAuthEnabled(
+          localStorage.getItem("socket-auth-enabled") === "true",
+        );
+        setSocketToken(localStorage.getItem("socket-token") || "");
       } catch (error) {
         console.error("Failed to load server endpoint:", error);
         showError("Configuration Error", "Failed to load saved configuration");
@@ -94,9 +100,27 @@ export function ServerForm({ onSave, embedded = false }: Props) {
       );
       return;
     }
+    if (socketAuthEnabled && !socketToken.trim()) {
+      showError(
+        "Token Required",
+        "Enter a token or turn off 'Require token for devices'",
+      );
+      return;
+    }
     setIsSaving(true);
     try {
       localStorage.setItem("server-endpoint", endpoint.trim());
+      localStorage.setItem(
+        "socket-auth-enabled",
+        socketAuthEnabled ? "true" : "false",
+      );
+      localStorage.setItem("socket-token", socketToken.trim());
+      if (backend.setSocketConfig) {
+        await backend.setSocketConfig({
+          authEnabled: socketAuthEnabled,
+          token: socketToken.trim(),
+        });
+      }
       showSuccess(
         "Configuration Saved",
         "Server endpoint updated successfully",
@@ -253,6 +277,65 @@ export function ServerForm({ onSave, embedded = false }: Props) {
             )}
           </Button>
         </div>
+
+        {/* Device access security — settings/embedded mode only */}
+        {embedded && (
+          <div className="pt-3 border-t border-border space-y-3">
+            <div>
+              <p className="text-[13px] font-medium text-foreground">
+                Device access security
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Require devices to send a token when connecting to the print
+                server.
+              </p>
+            </div>
+            <label
+              htmlFor="socket-auth"
+              className="flex items-center justify-between py-2.5 px-3 rounded-md bg-secondary border border-border cursor-pointer hover:bg-muted transition-colors"
+            >
+              <span className="text-[13px] text-foreground">Require token</span>
+              <input
+                id="socket-auth"
+                type="checkbox"
+                checked={socketAuthEnabled}
+                onChange={(e) => {
+                  setSocketAuthEnabled(e.target.checked);
+                  if (e.target.checked && !socketToken.trim()) {
+                    setSocketToken(
+                      `SHOP-${Math.floor(1000 + Math.random() * 9000)}`,
+                    );
+                  }
+                }}
+                className="w-4 h-4 accent-primary cursor-pointer"
+              />
+            </label>
+            {socketAuthEnabled && (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="socket-token"
+                  className="text-[13px] font-medium text-foreground"
+                >
+                  Token
+                </Label>
+                <Input
+                  id="socket-token"
+                  type="text"
+                  value={socketToken}
+                  onChange={(e) => setSocketToken(e.target.value)}
+                  placeholder="SHOP-1234"
+                  className="h-9 text-[13px] font-mono"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Device URL becomes{" "}
+                  <code className="font-mono">
+                    ws://&lt;pc-ip&gt;:8181/?token={socketToken || "…"}
+                  </code>
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Danger zone — only in settings/embedded mode */}
         {embedded && (

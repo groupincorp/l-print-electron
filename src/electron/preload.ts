@@ -44,6 +44,30 @@ export const backend = {
     ipcRenderer.on("status", (_, msg) => callback(msg)),
   onLog: (callback: (msg: string) => void) =>
     ipcRenderer.on("log", (_, msg) => callback(msg)),
+  // WebSocket print server (device → PC)
+  getSocketInfo: async (): Promise<{
+    running: boolean;
+    host: string;
+    port: number;
+    addresses: string[];
+    authEnabled: boolean;
+    clientCount: number;
+    clientIps: string[];
+  }> => await ipcRenderer.invoke("get-socket-info"),
+  setSocketConfig: async (config: {
+    authEnabled?: boolean;
+    token?: string;
+  }): Promise<void> => await ipcRenderer.invoke("socket-config-changed", config),
+  onSocketClients: (
+    callback: (data: {
+      count: number;
+      clients: Array<{ id: string; ip: string; connectedAt: number }>;
+    }) => void,
+  ) => ipcRenderer.on("ws-clients", (_, data) => callback(data)),
+  getFirewallStatus: async (): Promise<"allowed" | "missing" | "unknown"> =>
+    await ipcRenderer.invoke("get-firewall-status"),
+  addFirewallRule: async (): Promise<{ ok: boolean; message: string }> =>
+    await ipcRenderer.invoke("add-firewall-rule"),
 };
 
 contextBridge.exposeInMainWorld("backend", backend);

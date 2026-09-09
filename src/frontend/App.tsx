@@ -22,6 +22,14 @@ function App() {
         if (backend.tokenChanged) {
           await backend.tokenChanged(storedToken);
         }
+
+        if (backend.setSocketConfig) {
+          await backend.setSocketConfig({
+            authEnabled:
+              localStorage.getItem("socket-auth-enabled") === "true",
+            token: localStorage.getItem("socket-token") || "",
+          });
+        }
       } catch (error) {
         console.error("Failed to load stored data:", error);
       } finally {
