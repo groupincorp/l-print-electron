@@ -8,6 +8,7 @@ import { generateLabel } from "./lib/label-printer";
 import { getLanAddresses } from "./lib/network";
 import { tryAddFirewallRuleQuietly } from "./lib/firewall";
 import { print as pdfPrint, type PrintOptions } from "pdf-to-printer";
+import { resolvePageSize } from "./render";
 import fs from "fs";
 
 const HOST = "0.0.0.0";
@@ -121,8 +122,8 @@ async function printHtml(content: any, printInfo: any): Promise<void> {
       (p) => p.name,
     );
     if (!available.includes(printInfo.printer_name)) {
-      log(
-        `Printer ${printInfo.printer_name} is not available. Available: ${available.join(", ")}`,
+      throw new Error(
+        `Printer "${printInfo.printer_name}" is not available. Available: ${available.join(", ") || "none"}`,
       );
     }
 
@@ -133,6 +134,13 @@ async function printHtml(content: any, printInfo: any): Promise<void> {
             silent: true,
             printBackground: true,
             deviceName: printInfo.printer_name,
+            copies: printInfo.copies || 1,
+            margins: { marginType: "none" },
+            // Receipt HTML has no built-in page size of its own (unlike the
+            // PDF label path) - without this Chromium defaults to A4/Letter,
+            // shrinking the receipt to a corner of a full page instead of
+            // filling the thermal roll width.
+            pageSize: resolvePageSize(printInfo.page_size || "80mm"),
           },
           (success, failureReason) => {
             if (success) resolve();

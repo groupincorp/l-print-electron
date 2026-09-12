@@ -30,7 +30,7 @@ type ElectronPageSize =
   | "Tabloid";
 
 /** Map receipt paper sizes to Electron pageSize micron objects */
-function resolvePageSize(
+export function resolvePageSize(
   pageSize: PosPrintOptions["pageSize"],
 ): ElectronPageSize {
   if (!pageSize) return "A4";
