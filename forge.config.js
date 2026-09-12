@@ -15,6 +15,20 @@ module.exports = {
     ],
   },
   rebuildConfig: {},
+  publishers: [
+    {
+      name: '@electron-forge/publisher-github',
+      config: {
+        repository: {
+          owner: 'groupincorp',
+          name: 'l-print-electron',
+        },
+        authToken: process.env.GH_TOKEN,
+        draft: false,
+        generateReleaseNotes: true,
+      },
+    },
+  ],
   makers: [
     {
       name: '@electron-forge/maker-squirrel',

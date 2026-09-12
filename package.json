@@ -6,6 +6,7 @@
   "author": "sokphaladam",
   "description": "A printer management system for restaurants print kitchen and front desk receipts from a single application.",
   "homepage": ".",
+  "repository": "github:groupincorp/l-print-electron",
   "scripts": {
     "dev": "concurrently \"vite\" \"cross-env DEV= tsc-watch -p tsconfig-electron.json --onSuccess \\\"electron .\\\"\"",
     "preview": "vite build && tsc -p tsconfig-electron.json && cross-env PREVIEW= electron .",
@@ -13,6 +14,7 @@
     "build:win": "vite build && tsc -p tsconfig-electron.json && electron-forge make --win --config",
     "build:linux": "vite build && tsc -p tsconfig-electron.json && electron-forge make --linux --config",
     "build:mac": "vite build && tsc -p tsconfig-electron.json && electron-forge make --mac --config",
+    "publish": "vite build && tsc -p tsconfig-electron.json && electron-forge publish",
     "lint": "eslint .",
     "electron-forge": "electron-forge",
     "start": "electron-forge start",
@@ -41,6 +43,7 @@
     "svg-to-pdfkit": "^0.1.8",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.12",
+    "update-electron-app": "^3.3.0",
     "ws": "^8.20.0"
   },
   "devDependencies": {
@@ -52,6 +55,7 @@
     "@electron-forge/maker-zip": "^7.8.3",
     "@electron-forge/plugin-auto-unpack-natives": "^7.8.3",
     "@electron-forge/plugin-fuses": "^7.8.3",
+    "@electron-forge/publisher-github": "^7.11.2",
     "@electron/fuses": "^1.8.0",
     "@eslint/js": "^9.33.0",
     "@types/node": "^24.3.0",

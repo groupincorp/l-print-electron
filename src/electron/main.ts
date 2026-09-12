@@ -2,14 +2,29 @@ import { app, BrowserWindow, Menu, nativeImage, Tray } from "electron";
 import { existsSync } from "fs";
 import cron from "node-cron";
 import { join } from "path";
+import { updateElectronApp } from "update-electron-app";
 
 // 1. this import won't work yet, but we will fix that next
 import "./api";
 import { stopWebSocketServer } from "./socket";
 
+// Squirrel fires this on Windows install/update/uninstall to create or
+// remove shortcuts; the process must quit immediately afterward.
+if (require("electron-squirrel-startup")) {
+  app.quit();
+}
+
 // 2. simple check if we are running in dev / preview / production
 const isDev = process.env.DEV != undefined;
 const isPreview = process.env.PREVIEW != undefined;
+
+if (!isDev && !isPreview) {
+  updateElectronApp({
+    repo: "groupincorp/l-print-electron",
+    updateInterval: "1 hour",
+    notifyUser: true,
+  });
+}
 
 app.setName("Printer Maintenance");
 app.setPath("userData", join(app.getPath("appData"), "printer-maintenance"));
