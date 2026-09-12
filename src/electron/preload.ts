@@ -10,8 +10,26 @@ export const backend = {
   login: async (username: string, password: string): Promise<string> => {
     return await ipcRenderer.invoke("login", username, password);
   },
+  // Returns an unsubscribe function - callers that mount/unmount repeatedly
+  // (e.g. PrintQueue, shown only while its sidebar tab is active) MUST call
+  // it on cleanup, otherwise each remount stacks another listener on top of
+  // the ones from previous mounts and every cron tick fires N times.
   onCronEvent: (callback: (data: unknown) => void) => {
-    ipcRenderer.on("cron-event", (_, data) => callback(data));
+    const listener = (_: unknown, data: unknown) => callback(data);
+    ipcRenderer.on("cron-event", listener);
+    return () => ipcRenderer.removeListener("cron-event", listener);
+  },
+  // Fires while a WS-pushed kitchen ticket is printing on `printerName`, so
+  // the renderer can pause its own print_queue poller for that printer and
+  // avoid sending it a competing job at the same time. Returns an
+  // unsubscribe function - see onCronEvent above for why callers must use it.
+  onKitchenWsPrintStatus: (
+    callback: (data: { printerName: string; active: boolean }) => void,
+  ) => {
+    const listener = (_: unknown, data: { printerName: string; active: boolean }) =>
+      callback(data);
+    ipcRenderer.on("kitchen-ws-print-status", listener);
+    return () => ipcRenderer.removeListener("kitchen-ws-print-status", listener);
   },
   printJob: async (printData: any[], options: any) => {
     return await ipcRenderer.invoke("create-print-job", printData, options);
@@ -37,8 +55,11 @@ export const backend = {
     clear: async () => await ipcRenderer.invoke("store-clear"),
   },
   // Token management
-  tokenChanged: async (token: string | null): Promise<void> => {
-    return await ipcRenderer.invoke("token-changed", token);
+  tokenChanged: async (
+    token: string | null,
+    serverEndpoint?: string | null,
+  ): Promise<void> => {
+    return await ipcRenderer.invoke("token-changed", token, serverEndpoint);
   },
   onStatus: (callback: (msg: string) => void) =>
     ipcRenderer.on("status", (_, msg) => callback(msg)),

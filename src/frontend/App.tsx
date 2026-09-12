@@ -20,7 +20,7 @@ function App() {
         setServerEndpoint(storedEndpoint);
 
         if (backend.tokenChanged) {
-          await backend.tokenChanged(storedToken);
+          await backend.tokenChanged(storedToken, storedEndpoint);
         }
 
         if (backend.setSocketConfig) {
@@ -46,7 +46,7 @@ function App() {
     // Notify main process about token change
     if (backend.tokenChanged) {
       try {
-        await backend.tokenChanged(newToken);
+        await backend.tokenChanged(newToken, serverEndpoint);
       } catch (error) {
         console.error(
           "Failed to notify main process about token change:",

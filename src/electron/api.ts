@@ -10,6 +10,7 @@ import {
 import { mainWindow } from "./main";
 import { getPrinterStatuses } from "./printers";
 import { getFirewallStatus, addFirewallRule } from "./lib/firewall";
+import { setPrintQueueCredentials } from "./lib/print-queue-api";
 
 ipcMain.handle(
   "node-version",
@@ -63,8 +64,17 @@ ipcMain.handle("add-firewall-rule", async () => {
 
 ipcMain.handle(
   "token-changed",
-  async (_, token: string | null): Promise<void> => {
+  async (
+    _,
+    token: string | null,
+    serverEndpoint?: string | null,
+  ): Promise<void> => {
     console.log("Token changed:", token ? "Token available" : "Token cleared");
+
+    // Cached for deletePrintQueueRow() (src/electron/lib/print-queue-api.ts),
+    // called from socket.ts right after a WS-pushed kitchen ticket prints -
+    // that path has no renderer round trip available to fetch these itself.
+    setPrintQueueCredentials(serverEndpoint ?? null, token);
 
     if (token) {
       // Token is available, start WebSocket server

@@ -420,14 +420,37 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
   useEffect(() => {
     if (!token || isHandlerRegistered.current) return;
     managerRef.current!.onQueuesChange(setQueues);
-    backend.onCronEvent(() => {
+    const offCron = backend.onCronEvent(() => {
       console.log("Cron → syncing queues");
       fetchAndSync();
     });
+    // A WS-pushed kitchen ticket is printing directly on this printer right
+    // now (bypassing this queue entirely) - pause our own polling for it so
+    // the two paths never send it competing jobs, and resume once it's done.
+    const offKitchenWs = backend.onKitchenWsPrintStatus?.(
+      ({ printerName, active }) => {
+        if (active) {
+          console.log(`Kitchen WS print active on ${printerName} → pausing poller`);
+          managerRef.current?.pause(printerName);
+        } else {
+          console.log(`Kitchen WS print done on ${printerName} → resuming poller`);
+          managerRef.current?.resume(printerName);
+        }
+      },
+    );
     isHandlerRegistered.current = true;
     fetchAndSync();
+    // This component only exists while its sidebar tab is active (see
+    // app-shell.tsx), so it fully unmounts/remounts on every tab switch.
+    // Without removing these listeners, each remount would stack another
+    // cron-event/kitchen-ws-print-status handler on top of the previous
+    // mount's - and every leaked handler independently polls and prints
+    // the same queue, which is what caused tickets to print more than once.
     return () => {
       isHandlerRegistered.current = false;
+      offCron?.();
+      offKitchenWs?.();
+      managerRef.current?.destroy();
     };
   }, [token, fetchAndSync]);
 

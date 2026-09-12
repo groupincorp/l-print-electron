@@ -8,8 +8,10 @@ import { generateLabel } from "./lib/label-printer";
 import { getLanAddresses } from "./lib/network";
 import { tryAddFirewallRuleQuietly } from "./lib/firewall";
 import { print as pdfPrint, type PrintOptions } from "pdf-to-printer";
-import { resolvePageSize } from "./render";
+import { createPrintJob, resolvePageSize } from "./render";
+import type { PosPrintData } from "electron-pos-printer";
 import fs from "fs";
+import { deletePrintQueueRows } from "./lib/print-queue-api";
 
 const HOST = "0.0.0.0";
 const PORT = 8181;
@@ -37,6 +39,31 @@ const clients = new Map<WebSocket, ClientMeta>();
 // Serializes work per printer so two devices targeting the same printer queue
 // instead of interleaving their output. Different printers still run in parallel.
 const printerChains = new Map<string, Promise<unknown>>();
+
+// While a WS-pushed kitchen ticket is printing on a given printer, the
+// renderer's print_queue poller is told to pause that same printer so the
+// two paths never send overlapping jobs to it. Reference-counted per
+// printer so back-to-back kitchen tickets on the same printer (queued via
+// printerChains above) don't cause a premature resume between them.
+const activeKitchenJobsByPrinter = new Map<string, number>();
+
+function setKitchenTicketPrinting(printerName: string, active: boolean) {
+  const current = activeKitchenJobsByPrinter.get(printerName) ?? 0;
+  const next = Math.max(0, current + (active ? 1 : -1));
+  activeKitchenJobsByPrinter.set(printerName, next);
+
+  if (active && current === 0) {
+    currentWindow?.webContents.send("kitchen-ws-print-status", {
+      printerName,
+      active: true,
+    });
+  } else if (!active && next === 0) {
+    currentWindow?.webContents.send("kitchen-ws-print-status", {
+      printerName,
+      active: false,
+    });
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,6 +189,28 @@ async function printHtml(content: any, printInfo: any): Promise<void> {
   }
 }
 
+// Renders through the exact same HTML-based path the 10s print_queue
+// poller already uses (see queue-manager.ts's run() -> backend.printJob()
+// -> createPrintJob() via IPC) instead of the generic printPos() branch
+// below, so a WS-pushed kitchen ticket looks identical to a polled one.
+async function printKitchenTicket(
+  content: PosPrintData[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  printInfo: any,
+): Promise<void> {
+  const ok = await createPrintJob(content, {
+    preview: false,
+    margin: "0 0 0 0",
+    copies: 1,
+    printerName: printInfo.printer_name,
+    timeOutPerLine: 400,
+    silent: true,
+    pageSize: "80mm",
+    boolean: true,
+  });
+  if (!ok) throw new Error("Printer returned failure");
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function printPos(content: any, printInfo: any): Promise<void> {
   const info = {
@@ -199,6 +248,8 @@ async function processContents(
         await printProductLot(content, printInfo);
       } else if (printInfo.type === "data:text/html") {
         await printHtml(content, printInfo);
+      } else if (printInfo.type === "kitchen_ticket") {
+        await printKitchenTicket(content, printInfo);
       } else {
         await printPos(content, printInfo);
       }
@@ -248,6 +299,9 @@ async function handleMessage(ws: WebSocket, raw: string) {
   log(`Handling print job ${jobId} → ${printerName} (${contents.length} item(s))`);
   sendJson(ws, { type: "ack", jobId, items: contents.length });
 
+  const isKitchenTicket = printInfo.type === "kitchen_ticket";
+  if (isKitchenTicket) setKitchenTicketPrinting(printerName, true);
+
   const previous = printerChains.get(printerName) ?? Promise.resolve();
   const work = previous.then(() => processContents(contents, printInfo));
   printerChains.set(
@@ -261,11 +315,33 @@ async function handleMessage(ws: WebSocket, raw: string) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     results = contents.map((_, index) => ({ index, ok: false, error: message }));
+  } finally {
+    // Resume the poller for this printer whether the print succeeded,
+    // failed, or threw - never leave it paused indefinitely.
+    if (isKitchenTicket) setKitchenTicketPrinting(printerName, false);
   }
 
   const ok = results.every((r) => r.ok);
   log(`Print job ${jobId} finished — ${ok ? "OK" : "with errors"}`);
   sendJson(ws, { type: "job_result", jobId, ok, results });
+
+  // Kitchen tickets are pushed straight from a POS terminal as a speed-up
+  // over the 10s print_queue poller, which normally deletes a row itself
+  // right after printing it. Do the same here on success so the poller
+  // never sees (and reprints) a ticket this path already delivered. On
+  // failure, deliberately do nothing - the row stays queued and the next
+  // poll tick retries it, same as any other print failure.
+  //
+  // queueId is normally one id, but a "group_by: TABLE" ticket merges
+  // several print_queue rows into one printed ticket, so it arrives as a
+  // comma-joined list (e.g. "12,13,14") - delete every id in the group.
+  if (isKitchenTicket && ok && payload.queueId != null) {
+    const ids = String(payload.queueId)
+      .split(",")
+      .map((s) => Number(s))
+      .filter((n) => Number.isFinite(n));
+    void deletePrintQueueRows(ids);
+  }
 }
 
 // ─── Heartbeat ────────────────────────────────────────────────────────────────
