@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <clipPath id="squircle">
+      <path d="M512 40
+               C 850 40 984 174 984 512
+               C 984 850 850 984 512 984
+               C 174 984 40 850 40 512
+               C 40 174 174 40 512 40 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- background -->
+  <g clip-path="url(#squircle)">
+    <rect x="0" y="0" width="1024" height="1024" fill="#12182B"/>
+  </g>
+
+  <!-- receipt paper feeding out the top of the printer -->
+  <g>
+    <path d="M 372 300
+             L 652 300
+             L 652 470
+             L 372 470 Z"
+          fill="#F4F6FA"/>
+    <!-- torn top edge of the receipt -->
+    <path d="M 372 300
+             L 400 316 L 428 300 L 456 316 L 484 300 L 512 316 L 540 300
+             L 568 316 L 596 300 L 624 316 L 652 300
+             L 652 470 L 372 470 Z"
+          fill="#F4F6FA"/>
+    <!-- printed lines on the receipt, accent color -->
+    <rect x="404" y="350" width="216" height="20" rx="10" fill="#2DD4BF"/>
+    <rect x="404" y="392" width="160" height="16" rx="8" fill="#9AEDE3"/>
+    <rect x="404" y="424" width="180" height="16" rx="8" fill="#9AEDE3"/>
+  </g>
+
+  <!-- printer body -->
+  <rect x="288" y="470" width="448" height="230" rx="36" fill="#F4F6FA"/>
+
+  <!-- paper feed slot -->
+  <rect x="352" y="470" width="320" height="26" rx="13" fill="#12182B"/>
+
+  <!-- status indicator, accent color -->
+  <circle cx="628" cy="592" r="20" fill="#2DD4BF"/>
+
+  <!-- output tray -->
+  <path d="M 320 700 L 704 700 L 672 760 L 352 760 Z" fill="#D8DEE9"/>
+</svg>
