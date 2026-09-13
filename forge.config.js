@@ -58,11 +58,13 @@ module.exports = {
       config: {
         iconUrl: path.resolve(__dirname, 'src/assets/printer-maintenance.ico'),
         setupIcon: path.resolve(__dirname, 'src/assets/printer-maintenance.ico'),
-        // Lets Squirrel diff against the last published release to produce a
-        // small delta.nupkg, so updates don't re-download the full ~140MB
-        // package every time. Resolves to whatever was most recently
-        // published on GitHub at build time.
-        remoteReleases: 'https://github.com/groupincorp/l-print-electron/releases/latest/download',
+        // NOTE: remoteReleases (delta packages) was tried here to shrink
+        // update downloads, but update.electronjs.org - the free proxy
+        // update-electron-app uses - doesn't correctly serve the multi-
+        // version RELEASES chain that produces. It returns a malformed
+        // response ("Invalid release entry" / bad checksums) that breaks
+        // auto-update entirely. Do not re-enable without self-hosting the
+        // update feed instead of update.electronjs.org.
       },
     },
     {
