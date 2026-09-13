@@ -9,6 +9,9 @@ on:
 jobs:
   release:
     runs-on: ${{ matrix.os }}
+    environment: GH_TOKEN
+    permissions:
+      contents: write
 
     strategy:
       matrix:
@@ -30,4 +33,5 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run publish
