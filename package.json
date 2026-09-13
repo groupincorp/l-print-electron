@@ -1,7 +1,7 @@
 {
   "name": "printer-maintenance",
   "private": true,
-  "version": "1.3.2",
+  "version": "1.3.3",
   "main": "dist/main.js",
   "author": "sokphaladam",
   "description": "A printer management system for restaurants print kitchen and front desk receipts from a single application.",
