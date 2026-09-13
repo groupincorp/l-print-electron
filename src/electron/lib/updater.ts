@@ -10,6 +10,12 @@ export type UpdateState =
 
 const SUPPORTED_PLATFORMS = ["darwin", "win32"];
 
+// Tracks whether a check is already in flight - shared across the background
+// hourly checker (started in main.ts via update-electron-app) and manual
+// checks from the renderer, since Squirrel's updater process throws
+// "already running" if checkForUpdates() is called while one is pending.
+let checkInProgress = false;
+
 function sendStatus(
   getMainWindow: () => BrowserWindow | null,
   state: UpdateState,
@@ -23,18 +29,22 @@ function sendStatus(
 // singleton here - Electron's autoUpdater supports multiple listeners.
 export function registerUpdaterIpc(getMainWindow: () => BrowserWindow | null) {
   autoUpdater.on("checking-for-update", () => {
+    checkInProgress = true;
     sendStatus(getMainWindow, "checking");
   });
 
   autoUpdater.on("update-available", () => {
+    // stays true until update-downloaded/error - a download is now in flight
     sendStatus(getMainWindow, "available", "Update found, downloading…");
   });
 
   autoUpdater.on("update-not-available", () => {
+    checkInProgress = false;
     sendStatus(getMainWindow, "not-available", "You're on the latest version.");
   });
 
   autoUpdater.on("update-downloaded", (_event, _releaseNotes, releaseName) => {
+    checkInProgress = false;
     sendStatus(
       getMainWindow,
       "downloaded",
@@ -43,6 +53,7 @@ export function registerUpdaterIpc(getMainWindow: () => BrowserWindow | null) {
   });
 
   autoUpdater.on("error", (err) => {
+    checkInProgress = false;
     sendStatus(getMainWindow, "error", err.message);
   });
 
@@ -51,10 +62,18 @@ export function registerUpdaterIpc(getMainWindow: () => BrowserWindow | null) {
       return { ok: false, message: "Auto-update isn't supported on this platform." };
     }
 
+    if (checkInProgress) {
+      return {
+        ok: false,
+        message: "A check is already in progress — please wait a moment.",
+      };
+    }
+
     try {
       autoUpdater.checkForUpdates();
       return { ok: true };
     } catch (err) {
+      checkInProgress = false;
       return { ok: false, message: (err as Error).message };
     }
   });
