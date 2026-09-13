@@ -89,6 +89,31 @@ export const backend = {
     await ipcRenderer.invoke("get-firewall-status"),
   addFirewallRule: async (): Promise<{ ok: boolean; message: string }> =>
     await ipcRenderer.invoke("add-firewall-rule"),
+  // App auto-update (owner-triggered manual check, in addition to the
+  // hourly background check started in main.ts)
+  checkForUpdates: async (): Promise<{ ok: boolean; message?: string }> =>
+    await ipcRenderer.invoke("check-for-updates"),
+  installUpdate: async (): Promise<void> =>
+    await ipcRenderer.invoke("install-update"),
+  onUpdateStatus: (
+    callback: (status: {
+      state:
+        | "checking"
+        | "available"
+        | "not-available"
+        | "downloaded"
+        | "error"
+        | "unsupported";
+      message?: string;
+    }) => void,
+  ) => {
+    const listener = (_: unknown, data: unknown) =>
+      callback(data as Parameters<typeof callback>[0]);
+    ipcRenderer.on("update-status", listener);
+    return () => {
+      ipcRenderer.removeListener("update-status", listener);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld("backend", backend);

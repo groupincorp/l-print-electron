@@ -15,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useToast } from "../ui/toast";
+import { UpdateChecker } from "./update-checker";
 
 interface Props {
   onSave?: () => void;
@@ -336,6 +337,9 @@ export function ServerForm({ onSave, embedded = false }: Props) {
             )}
           </div>
         )}
+
+        {/* App updates — only in settings/embedded mode */}
+        {embedded && <UpdateChecker />}
 
         {/* Danger zone — only in settings/embedded mode */}
         {embedded && (

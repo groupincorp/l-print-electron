@@ -4,6 +4,7 @@ const path = require('path');
 
 module.exports = {
   packagerConfig: {
+    name: 'Printer Maintenance',
     asar: {
       unpack: "**/node_modules/pdf-to-printer/dist/*.exe",
     },
@@ -45,7 +46,7 @@ module.exports = {
       name: '@electron-forge/maker-dmg',
       config: {
         icon: path.resolve(__dirname, 'src/assets/printer-maintenance.icns'),
-        name: 'Printer Restaurant',
+        name: 'Printer Maintenance',
       },
       platforms: ['darwin'],
     },

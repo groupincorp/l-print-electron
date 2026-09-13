@@ -7,6 +7,7 @@ import { updateElectronApp } from "update-electron-app";
 // 1. this import won't work yet, but we will fix that next
 import "./api";
 import { stopWebSocketServer } from "./socket";
+import { registerUpdaterIpc } from "./lib/updater";
 
 // Squirrel fires this on Windows install/update/uninstall to create or
 // remove shortcuts; the process must quit immediately afterward.
@@ -24,6 +25,7 @@ if (!isDev && !isPreview) {
     updateInterval: "1 hour",
     notifyUser: true,
   });
+  registerUpdaterIpc(() => mainWindow);
 }
 
 app.setName("Printer Maintenance");
