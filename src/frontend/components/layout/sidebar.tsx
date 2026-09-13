@@ -97,7 +97,7 @@ export function Sidebar({
       {/* ── Footer ── */}
       <div className="px-3 py-3 border-t border-sidebar-border">
         <p className="text-[11px] text-muted-foreground text-center">
-          v{__APP_VERSION__} · Restaurant POS
+          v{__APP_VERSION__} · Print Maintenance
         </p>
       </div>
     </aside>
