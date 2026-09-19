@@ -198,7 +198,7 @@ async function printKitchenTicket(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   printInfo: any,
 ): Promise<void> {
-  const ok = await createPrintJob(content, {
+  const result = await createPrintJob(content, {
     preview: false,
     margin: "0 0 0 0",
     copies: 1,
@@ -208,7 +208,15 @@ async function printKitchenTicket(
     pageSize: "80mm",
     boolean: true,
   });
-  if (!ok) throw new Error("Printer returned failure");
+  // "timeout" is truthy - branch on it before any boolean check, or a
+  // timed-out ticket reports success and its print_queue row gets deleted
+  // without anyone knowing whether the paper came out.
+  if (result === "timeout") {
+    throw new Error(
+      "Print timed out — check the printer; the job may still be in the Windows print spooler",
+    );
+  }
+  if (!result) throw new Error("Printer returned failure");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

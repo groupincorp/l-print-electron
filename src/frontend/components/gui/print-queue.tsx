@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from "@/components/ui/button";
 import {
-  QueueManager,
+  queueManager,
   type PrinterQueueState,
   type QueueStatus,
 } from "@/lib/queue-manager";
@@ -269,7 +269,7 @@ function PrinterQueueCard({
             {queue.jobs.length} job{queue.jobs.length !== 1 ? "s" : ""}
           </span>
 
-          {queue.isEnabled ? (
+          {queue.isEnabled && !queue.isHalted ? (
             <Button
               variant="outline"
               size="sm"
@@ -392,14 +392,7 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
   const [globalEnabled, setGlobalEnabled] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const managerRef = useRef<QueueManager | null>(null);
   const isHandlerRegistered = useRef(false);
-
-  if (!managerRef.current) {
-    const mgr = new QueueManager();
-    mgr.onQueuesChange(setQueues);
-    managerRef.current = mgr;
-  }
 
   const fetchAndSync = useCallback(async () => {
     setIsRefreshing(true);
@@ -408,7 +401,7 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
         "/api/print-queue",
         "GET",
       );
-      managerRef.current?.sync(res.result);
+      queueManager.sync(res.result);
       setLastRefresh(new Date());
     } catch (err) {
       console.error("Failed to fetch print queue:", err);
@@ -419,7 +412,10 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
 
   useEffect(() => {
     if (!token || isHandlerRegistered.current) return;
-    managerRef.current!.onQueuesChange(setQueues);
+    // Re-attach to the app-wide manager. It kept running (and printing)
+    // while this tab was unmounted, so this immediately paints whatever is
+    // already in flight rather than starting from an empty list.
+    queueManager.onQueuesChange(setQueues);
     const offCron = backend.onCronEvent(() => {
       console.log("Cron → syncing queues");
       fetchAndSync();
@@ -431,10 +427,10 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
       ({ printerName, active }) => {
         if (active) {
           console.log(`Kitchen WS print active on ${printerName} → pausing poller`);
-          managerRef.current?.pause(printerName);
+          queueManager.pause(printerName);
         } else {
           console.log(`Kitchen WS print done on ${printerName} → resuming poller`);
-          managerRef.current?.resume(printerName);
+          queueManager.resume(printerName);
         }
       },
     );
@@ -446,34 +442,36 @@ export function PrintQueue({ token, onQueueCountChange }: Props) {
     // cron-event/kitchen-ws-print-status handler on top of the previous
     // mount's - and every leaked handler independently polls and prints
     // the same queue, which is what caused tickets to print more than once.
+    //
+    // The manager itself is NOT torn down here: it is app-wide and owns the
+    // in-flight print loop. Destroying it on unmount used to strand that
+    // loop (it kept printing) while the next mount built a second manager
+    // over the same rows - the other half of the duplicate-ticket bug.
     return () => {
       isHandlerRegistered.current = false;
       offCron?.();
       offKitchenWs?.();
-      managerRef.current?.destroy();
+      queueManager.detach(setQueues);
     };
   }, [token, fetchAndSync]);
 
-  const handlePause = useCallback(
-    (name: string) => managerRef.current?.pause(name),
-    [],
-  );
+  const handlePause = useCallback((name: string) => queueManager.pause(name), []);
   const handleResume = useCallback(
-    (name: string) => managerRef.current?.resume(name),
+    (name: string) => queueManager.resume(name),
     [],
   );
   const handleJobDeleted = useCallback(
     (printerName: string, jobId: number) =>
-      managerRef.current?.removeJob(printerName, jobId),
+      queueManager.removeJob(printerName, jobId),
     [],
   );
 
   const toggleGlobal = () => {
     if (globalEnabled) {
-      managerRef.current?.pauseAll();
+      queueManager.pauseAll();
       setGlobalEnabled(false);
     } else {
-      managerRef.current?.resumeAll();
+      queueManager.resumeAll();
       setGlobalEnabled(true);
     }
   };

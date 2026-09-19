@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { contextBridge, ipcRenderer } from "electron";
+import type { PrintResult } from "./render";
 
 export const backend = {
   nodeVersion: async (msg: string): Promise<string> =>
@@ -31,7 +32,10 @@ export const backend = {
     ipcRenderer.on("kitchen-ws-print-status", listener);
     return () => ipcRenderer.removeListener("kitchen-ws-print-status", listener);
   },
-  printJob: async (printData: any[], options: any) => {
+  // Resolves "timeout" (truthy!) when the printer never reported back - the
+  // job is probably already spooled, so callers must not blindly reprint.
+  // See PrintResult in render.ts.
+  printJob: async (printData: any[], options: any): Promise<PrintResult> => {
     return await ipcRenderer.invoke("create-print-job", printData, options);
   },
   getPrinters: async (): Promise<

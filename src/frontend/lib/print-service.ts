@@ -22,6 +22,16 @@ export class PrintService {
       const response = await backend.printJob(data, this.printerOption);
       console.log("Print job response:", response);
 
+      // "timeout" is truthy but means "outcome unknown" - the job is
+      // probably already spooled, so leave the row queued for a human
+      // rather than deleting it or reprinting it. See PrintResult.
+      if (response === "timeout") {
+        console.warn(
+          `Print job ${id} timed out - outcome unknown, keeping in queue`,
+        );
+        return false;
+      }
+
       // Only remove from queue if print was successful
       if (response) {
         await requestDatabase("/api/print-queue/delete", "DELETE", {
