@@ -127,7 +127,12 @@ export function PrintTestButton() {
       ...options,
       printerName: input || options.printerName,
     });
-    console.log("Print job response:", response);
+    console.log(
+      "Print job response:",
+      response === "timeout"
+        ? "timed out — outcome unknown, check the printer and the Windows spooler"
+        : response,
+    );
   }, [input]);
 
   return (

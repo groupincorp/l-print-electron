@@ -178,20 +178,33 @@ ${option.footer ? `<footer>${option.footer}</footer>` : ""}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+/**
+ * `true` printed, `false` the printer rejected the job, `"timeout"` we never
+ * heard back.
+ *
+ * "timeout" is deliberately NOT `false`: by the time it fires, Chromium has
+ * already handed the document to the Windows spooler and nothing here can
+ * take it back. Treating that as a plain failure is what let a jammed
+ * spooler collect one re-spooled copy per retry and print them all at once
+ * when it cleared. Callers must branch on it explicitly rather than
+ * reprinting - and note it is truthy, so a bare `if (!result)` is a bug.
+ */
+export type PrintResult = boolean | "timeout";
+
 export async function createPrintJob(
   data: PosPrintData[],
   option: PosPrintOptions,
-): Promise<boolean> {
+): Promise<PrintResult> {
   const html = await buildReceiptHtml(data, option);
   const tmpFile = path.join(os.tmpdir(), `receipt_${Date.now()}.html`);
   fs.writeFileSync(tmpFile, html, "utf-8");
 
   const win = new BrowserWindow({ show: false });
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<PrintResult>((resolve) => {
     let settled = false;
 
-    const cleanup = (success: boolean) => {
+    const cleanup = (result: PrintResult) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
@@ -201,15 +214,17 @@ export async function createPrintJob(
         /* already closed */
       }
       fs.unlink(tmpFile, () => {});
-      resolve(success);
+      resolve(result);
     };
 
-    // Resolve false if the IPC would time out (Electron default ~30 s)
+    // No callback from Chromium in time (its own IPC gives up around 30s).
+    // The job is most likely sitting in the spooler, so report "unknown"
+    // rather than failure - see PrintResult.
     const timeoutId = setTimeout(() => {
       console.error(
-        "[LabelPrint] Print job timed out — printer may be offline",
+        "[LabelPrint] Print job timed out — printer may be jammed or offline; the job may already be in the Windows print spooler",
       );
-      cleanup(false);
+      cleanup("timeout");
     }, 25_000);
 
     win.webContents.once("did-fail-load", (_e, code, desc) => {
